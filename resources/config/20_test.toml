@@ -1,0 +1,13 @@
+loop_freq = 1000
+mqtt_host = "127.0.0.1"
+mqtt_sensor1 = "opto1"
+mqtt_sensor2 = "opto2"
+20_test_toml = 1
+
+[force_run]
+"000000000000" = 0
+"000000000001" = 1773691813.348447
+
+[enable_run]
+"1234" = 1
+"5678" = 0

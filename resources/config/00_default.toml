@@ -1,0 +1,200 @@
+# variables must be snake case to allow env overrides
+# if mca should shut down
+stop = true
+# how often to run control loop
+loop_freq = 1000
+# how often to run initialization loop
+init_loop_freq = 1000
+init_loop_count = 600
+# topic to subscribe to to get unit updates
+mqtt_topic_unit = "unit"
+# host for mqtt server
+mqtt_host = "localhost"
+# port for mqtt
+mqtt_port = 1883
+# time to keep connected to mqtt server if no traffic
+mqtt_keep_alive = 90
+# client id for mqtt connection
+mqtt_client_id = "mca"
+# prefix for mqtt subscription, combined with name and suffix
+mqtt_topic_sensors_prefix = "data/sensors"
+# suffix to look into under prifix/name for sensors
+#mqtt_topic_sensors_suffix = "OptoMMP/Modules/Channels"
+# mqtt_sensor1 name
+#mqtt_sensor1 = "opto1"
+# mqtt_sensor2 name
+#mqtt_sensor2 = "opto2"
+#max  messages to read per loop
+mqtt_read_per_loop = 200
+mqtt_bind_address = ""
+# port to bind conneciton to
+mqtt_bind_port = 0
+# weterh to clean session on connection
+mqtt_clean_session = false
+# transport protocol
+mqtt_transport = "tcp"
+# wetehr to reconnect on error
+mqtt_reconnect = false
+# wether to log messages form mqtt connection
+# subject to logging configuration
+mqtt_log_enabled = true
+# topic to send heartbeat to
+mqtt_mca_heartbeat = "data/mca/heartbeat"
+# wetehr to include debug settings
+#debug = true
+# prefix to send unit messages to
+unit_ctl_prefix = "data/mca"
+# chanel to send control messages to prefix/unitid/suffix
+unit_ctl_suffix = "ctl"
+# configured number of units
+unit_count = 14
+# minimum number of required sensors
+min_sensor_count = 3
+# configured number of sensors
+sensor_count = 14
+# minimum number of units to run 
+min_stage_count = 1
+# maximum number of units to run
+max_stage_count = 14
+#
+# data/sensors/opto1/OptoMMP/Modules/Channels/8/State
+#topics for source relay to identify where its located will usually be consistent with sensor patterns but may change in future
+#similar settings for other relays
+relay_topic = "sensors"
+source_force_state = false
+source_name = "q0"
+#source_topic = "data/sensors/opto1/OptoMMP/Modules/Channels/8"
+#source_topic_write = "data/sensors/write/opto1/OptoMMP/Modules/Channels/8/State"
+# relay2 = circ relay
+load_force_state = false
+load_name = "q1"
+#load_topic = "data/sensors/opto2/OptoMMP/Modules/Channels/8"
+#load_topic_write = "data/sensors/write/opto2/OptoMMP/Modules/Channels/8/State"
+# relay 3 = backup_heat
+backup_name = "q2"
+#backup_heat_topic = "data/sensors/opto1/OptoMMP/Modules/Channels/9"
+#backup_heat_topic_write = "data/sensors/write/opto1/OptoMMP/Modules/Channels/9/State"
+#backup_heat_force_state = false
+# setpoint, used by units in certain scenarios based on r513a code
+setpoint = 120
+# lwt target temperature set point
+lwt = 121
+# differential to use with setpoint to determine cut in/out temps
+differential = 0
+# min_delta, the smallest number of units to stop/start
+min_delta = 1
+# the largest number of units to start/stop
+max_delta = 1
+# number of errors before restting mca
+status_fail_restart_count = 120
+# source timer length
+source_start_time = 6
+source_end_time = 6
+# load relay timers
+load_start_time = 6
+load_end_time = 6
+# backup heat relay config and timers
+backup_heat_start_time = 0
+backup_heat_end_time = 0
+backup_heat_enabled = false
+
+# cut in/out based config
+cut_in = 119
+cut_out = 119
+# wether to use cut in / out settings or use setpoint/differential
+cut_based = true
+single_cut = true
+# wetehr to reconnect on failure
+reconnect_on_failure = true
+# mqtt ack
+mqtt_manual_ack = false
+
+# how often we expect to hear from a relay
+relay_timeout = 120
+
+# time to wait for relay to respond
+relay_call_timeout = 10
+
+# number of relay failures to allow before marking as unhealthy
+relay_fail_count = 3
+# how long to wait for a unit before timing out
+unit_timeout = 120
+# how many times unit can fail before being timed out
+unit_fail_count = 3
+# nick names for relays/units
+version = "0.1"
+image_version = "0.1"
+
+# ms to wait between connection checks on startup
+startup_connection_timeout = 5000
+# number of times to retry connections vefore giving up
+startup_connection_retry_count = 720
+
+# last time the edit mode password was given 
+edit_mode = 0
+# the code for edit mode
+edit_mode_code = 1547
+# timeout for edit mode in seconds
+edit_mode_timeout = 3600
+
+# time to end manual_mode 
+manual_mode = 0
+
+# directory to search to place logs
+log_mount = "/media"
+# name of directory to look for in directory tree to check for logs
+log_dir_name = "mca_logs"
+# file name for logs
+log_file_name = "mca_log"
+# max size of logs, used to prevent files getting too big
+# files are still rotated daily regardless of size
+log_file_size = 104857600
+# local location to log files
+
+sync_days = 10950
+log_location = "./logs"
+sync_bw_limit = "15m"
+
+hmi_static = "resources/hmi"
+hmi_template = "resources/templates"
+
+rest_static = "resources/static"
+rest_template = "resources/templates"
+00_default_toml = 1
+# Auto Update MCPLA file_name
+auto_update_mcpla = "auto_update_mcpla_v1.007.zip"
+
+# Serial Number: mumeric for now. other SN format: NHP000000
+mcp_sn = 420690
+
+hmi_host = "127.0.0.1"
+hmi_port = 3100
+
+log_sync_timeout = 30
+sensor_timeout = 600
+
+refresh_interval = 90
+
+# amount of time to wait for call to be received before 
+# considering it timed out
+#unit_call_timeout = 120
+#20min
+unit_run_timeout = 1200
+
+# number of call timeouts before triggering alarm 
+call_timeout_limt = 3
+
+# max duration of a unit call
+unit_max_run_time = 64800
+
+# ctd timer default 
+ctd_duration = 900
+
+mb_timeout = 3600
+
+# [force_run]
+# $unitid = time to end at
+#
+[relay_names]
+load = "Load Relay"
+source = "Source Relay"

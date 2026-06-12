@@ -1,0 +1,253 @@
+{
+  "log": {
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+      "standard": {
+        "format": "%(asctime)s,%(levelname)-.1s,%(name)s,%(message)s",
+        "datefmt": "%y%m%d%H%M%S"
+      }
+    },
+    "handlers": {
+      "rb": {
+        "class": "mca.MemRingBuffer",
+        "formatter": "standard",
+        "buffer_name": "mca_buffer",
+        "maxSize": 60,
+        "level": "INFO"
+      },
+      "console": {
+        "level": "INFO",
+        "class": "logging.StreamHandler",
+        "formatter": "standard"
+      },
+      "app": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "app.log",
+        "formatter": "standard"
+      },
+      "mqtt": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "mqtt.log",
+        "formatter": "standard"
+      },
+      "ctl": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "ctl.log",
+        "formatter": "standard"
+      },
+      "web": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "web.log",
+        "formatter": "standard"
+      },
+      "logSync": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "sync.log",
+        "formatter": "standard"
+      },
+      "logRotate": {
+        "level": "INFO",
+        "class": "logging.FileHandler",
+        "filename": "rotate.log",
+        "formatter": "standard"
+      }
+    },
+    "loggers": {
+      "__main__": {
+        "handlers": [
+          "console"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "main": {
+        "handlers": [
+          "console"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "root": {
+        "handlers": [
+          "console"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.LogSyncMonitor": {
+        "handlers": [
+          "logSync"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.rotateLog": {
+        "handlers": [
+          "logRotate"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.MCA": {
+        "handlers": [
+          "console",
+          "rb"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.components.Unit": {
+        "handlers": [
+          "console",
+          "rb"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.components.Sensor": {
+        "handlers": [
+          "console",
+          "rb"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.communication.ModbusData": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.communication.MQTTStringProcessor": {
+        "handlers": [
+          "mqtt"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.communication.Flask": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "modbus.ModbusServer": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mqtt.MQTTConnection": {
+        "handlers": [
+          "console"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "config.Config": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": true
+      },
+      "mca.MCAConfig": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.DHWSPController": {
+        "handlers": [
+          "console",
+          "ctl",
+          "rb"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.components.Relay.load": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.components.Relay.source": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.Logic": {
+        "handlers": [
+          "console",
+          "rb"
+        ],
+        "level": "INFO",
+        "propagate": false
+      },
+      "mca.components.Timer.load-start": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.components.Timer.load-end": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.components.Timer.source-start": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "mca.components.Timer.source-end": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "config.util": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "web": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      },
+      "werkzeug": {
+        "handlers": [
+          "console"
+        ],
+        "level": "WARN",
+        "propagate": false
+      }
+    }
+  },
+  "02_logs_json": 1
+}
