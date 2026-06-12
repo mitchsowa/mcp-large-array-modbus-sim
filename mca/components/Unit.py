@@ -126,7 +126,7 @@ class Unit:
         self.manual = False
         """if heat call is from manual call"""
 
-        self.cycle: Optional[bool] = None
+        self.cycle: bool = False
         """unit cycle register"""
 
         self.local_stop: bool = False
@@ -291,7 +291,12 @@ class Unit:
     @property
     def heatcall(self) -> bool:
         """the unit is in heatcall, one of the hc registers is true, it has received the heatcall but may not be started yet"""
-        return self.master or self.holding or self.standby
+        return (
+            self.cycle
+            and not self.cant_run
+            and (self.master or self.holding or self.standby)
+        )
+        # return self.master or self.holding or self.standby
 
     @property
     def lockout(self) -> bool:
@@ -583,7 +588,9 @@ class Unit:
         """set the unit state to given message
                 return - if state was successfully applied
         ctl packet
-           {"hc_status": ["Boolean M7000", "Boolean M7001", "Boolean M7002"],
+           {"hc_status": [
+           "Boolean M7000", "Boolean M7001", "Boolean M7002"
+           ],
             "cant_run": "Boolean M7003",
             "comp": {
             "state": "Boolean M7004",

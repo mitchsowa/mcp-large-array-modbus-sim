@@ -1,3 +1,4 @@
+from asyncio import Task
 import asyncio
 import logging
 from threading import Thread
@@ -90,7 +91,25 @@ class NWHSModbusServer:
         running = self.loop.is_running()
         tasks = asyncio.all_tasks(self.loop)
 
-        status: bool = self.data.status()
+        # status: bool = self.data.status()
         self.log.debug(f"modbus running status a{alive} r{running} t{tasks} ")
 
-        return alive and running and status
+        return alive and running  # and status
+
+    def gateway_status(self) -> bool:
+        return self.data.gateway_status()
+
+    def __serialize__(self):
+        def l(tsk: Task):
+            return str(tsk.get_name())
+
+        return {
+            "alive": None if self.thread is None else self.thread.is_alive(),
+            "loop_running": None if self.loop is None else self.loop.is_running(),
+            "running": self.running(),
+            "_running": self._running,
+            "address": self.address,
+            "tasks": list(map(l, list(asyncio.all_tasks(self.loop)))),
+            "gateway": self.gateway_status(),
+            "data": self.data.__serialize__(),
+        }

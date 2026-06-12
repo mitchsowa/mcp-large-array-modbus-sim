@@ -27,6 +27,12 @@
         "filename": "app.log",
         "formatter": "standard"
       },
+      "mb": {
+        "level": "DEBUG",
+        "class": "logging.FileHandler",
+        "filename": "mb.log",
+        "formatter": "standard"
+      },
       "mqtt": {
         "level": "INFO",
         "class": "logging.FileHandler",
@@ -120,9 +126,10 @@
       },
       "mca.communication.ModbusData": {
         "handlers": [
-          "console"
+          "console",
+          "mb"
         ],
-        "level": "WARN",
+        "level": "INFO",
         "propagate": false
       },
       "mca.communication.MQTTStringProcessor": {
@@ -141,9 +148,10 @@
       },
       "modbus.ModbusServer": {
         "handlers": [
-          "console"
+          "console",
+          "mb"
         ],
-        "level": "WARN",
+        "level": "INFO",
         "propagate": false
       },
       "mqtt.MQTTConnection": {

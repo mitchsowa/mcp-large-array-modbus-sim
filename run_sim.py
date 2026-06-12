@@ -193,7 +193,7 @@ def main() -> int:
                 print(data.cache)
             elif cmd == "status":
                 print(f"thread alive: {srv.thread.is_alive()}  running(): {srv.running()}  "
-                      f"data.status(): {data.status()}  cut_inout: {sim.cut_inout}  on: {sim.on}")
+                      f"data.gateway_status(): {data.gateway_status()}  cut_inout: {sim.cut_inout}  on: {sim.on}")
             else:
                 print(f"unknown command: {cmd} (try 'help')")
         except (IndexError, ValueError, KeyError, AttributeError) as e:

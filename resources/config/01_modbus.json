@@ -3,7 +3,7 @@
     "10501": "on",
     "10502": "state",
     "10503": "state",
-    "10504": "alarm.value.value",
+    "10504": "mcpalarm",
     "10505": "unit_count",
     "10506": "num_running_units",
     "10507": {
@@ -199,7 +199,14 @@
     "10646": "comp.47",
     "10647": "comp.48",
     "10648": "comp.49",
-    "10649": "comp.50"
+    "10649": "comp.50",
+    "10650": "run_backup",
+    "10651": "year",
+    "10652": "month",
+    "10653": "day",
+    "10654": "hour",
+    "10655": "minute",
+    "10656": "second"
   },
   "01_modbus_json": 1
 }
