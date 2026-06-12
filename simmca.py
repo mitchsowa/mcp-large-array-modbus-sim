@@ -23,6 +23,8 @@ Swap these formats for real ones to make register ordering match a
 production machine.
 """
 
+from datetime import datetime
+
 from mca.components.Sensor import Sensor
 from mca.components.Unit import Unit
 from mca.Util import IDict
@@ -59,6 +61,10 @@ class SimMCA:
 
         self.alarm = SimNativeAlarm(0)
         self.native_alarm = self.alarm  # MCA exposes both names
+
+        # run_backup: MCA.py returns int(self.controller.run_backup); the sim
+        # has no controller, so expose a settable int placeholder (reg 10650).
+        self.run_backup = 0
 
         # real Unit objects; sn 6-digit numeric placeholder, name MAC-like
         self.units = IDict()
@@ -109,6 +115,38 @@ class SimMCA:
             + (128 * bool(self.native_alarm.alarm))
         )
         return self._state + status
+
+    @property
+    def mcpalarm(self) -> int:
+        # MCA.py: int(self.native_alarm.alarm) -- reg 10504 (formerly the
+        # broken alarm.value.value mapping; dev remapped it to mcpalarm)
+        return int(self.native_alarm.alarm)
+
+    # ---- BACnet clock registers 10651-10656 (dev: int(datetime.now().X)) --
+
+    @property
+    def year(self) -> int:
+        return int(datetime.now().year)
+
+    @property
+    def month(self) -> int:
+        return int(datetime.now().month)
+
+    @property
+    def day(self) -> int:
+        return int(datetime.now().day)
+
+    @property
+    def hour(self) -> int:
+        return int(datetime.now().hour)
+
+    @property
+    def minute(self) -> int:
+        return int(datetime.now().minute)
+
+    @property
+    def second(self) -> int:
+        return int(datetime.now().second)
 
     @property
     def unit_count(self) -> int:

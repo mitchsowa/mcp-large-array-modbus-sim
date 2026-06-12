@@ -18,8 +18,9 @@ __init__.py, simmca.py, run_sim.py, selftest.py, mbtest.sh.
 ## Run
 
     pip install -r requirements.txt --break-system-packages
-    ./run_sim.py                # faithful: reg 10504 broken as in production
-    ./run_sim.py --fix-10504    # config-level overlay so full reads work
+    ./run_sim.py                # serves the current dev map (rc28+)
+    ./run_sim.py --fix-10504    # legacy overlay; obsolete since dev rc28
+                                #   remapped 10504 to mcpalarm (masks it now)
 
 pymodbus must be ~3.6 (3.6.9 verified): ModbusData.py imports
 pymodbus.datastore.store and pymodbus.device, removed in later releases.
@@ -45,12 +46,19 @@ machine's ordering.
 
 ## Findings from running the production files as-is
 
-- Reg 10504 (alarm.value.value) caches None; any read covering it gets no
+Synced to dev rc28 (`ce6621a`). The first two below were FIXED upstream at
+rc28; kept as history (they reappear on pre-rc28 tags/branches).
+
+- Reg 10504 (alarm.value.value) cached None; any read covering it got no
   response at all (connection-level, not a Modbus exception). Server
-  survives. Presents as 'random timeouts' to a BMS polling full blocks.
-- running() is inverted via ModbusData.status() (mb_timeout semantics);
+  survived. Presented as 'random timeouts' to a BMS polling full blocks.
+  FIXED rc28: remapped to mcpalarm; getValues returns -2 for None cells.
+- running() was inverted via ModbusData.status() (mb_timeout semantics);
   masked in production because the main loop re-calls modbus.start(),
-  whose thread.is_alive() guard no-ops.
+  whose thread.is_alive() guard no-ops. FIXED rc28: running() returns
+  `alive and running` (status term removed; status() -> gateway_status()).
+- Map now spans 10501-10656: dev rc28 added run_backup (10650) and a BACnet
+  clock block 10651-10656 (year/month/day/hour/minute/second).
 - Float registers only convert int values; non-integer config floats read
   as 0.0 over Modbus. Defaults (lwt=121 etc.) are ints, so latent.
 - MCAConfig list-overlay construction validates after each layer but
