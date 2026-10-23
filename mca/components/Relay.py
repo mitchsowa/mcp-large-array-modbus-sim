@@ -1,11 +1,11 @@
-from mca.Util import nowts
+from mca.Util import first
 import logging
-from datetime import datetime
-from typing import Optional
+from logging import Logger
 
 import mca.components
 from mca.Const import MAX_TIME_TS
 from mca.MCAConfig import MCAConfig
+from mca.Util import nowts
 
 
 class Relay:
@@ -18,7 +18,7 @@ class Relay:
         config: MCAConfig,
         timeout=60,
         retry=3,
-        logger: Optional[logging.Logger] = None,
+        logger: Logger | None = None,
     ):
         """
         represent a relay on the opto
@@ -36,7 +36,7 @@ class Relay:
             logger = logging.getLogger(__name__ + "." + str(id))
 
         self.log = logger
-        self.write: Optional[str] = None
+        self.write: str | None = None
 
         self.id = id
         # configuration
@@ -50,7 +50,7 @@ class Relay:
 
         self.req_time: float = 0
 
-        self.value = False
+        self.value: bool = False
         """the current reported state of the pumps assume off as it is the worse case scenario"""
         self.desired_value: bool = False
         """ the deisred state of the pumps, start on to keep them running if needed"""
@@ -123,7 +123,7 @@ class Relay:
             if self.value == self.desired_value:
                 self.log.info("relay updaed to desired time reset req_time")
                 self.sync = True
-                self.req_time = int(round(MAX_TIME_TS))
+                self.req_time = round(MAX_TIME_TS)
             self.log.debug(
                 f"mqtt updated for {self.id} {self.value} -> {value} {bool(value)} "
             )

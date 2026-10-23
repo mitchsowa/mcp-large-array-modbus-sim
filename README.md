@@ -18,8 +18,9 @@ __init__.py, simmca.py, run_sim.py, selftest.py, mbtest.sh.
 ## Run
 
     pip install -r requirements.txt --break-system-packages
-    ./run_sim.py                # faithful: reg 10504 broken as in production
-    ./run_sim.py --fix-10504    # config-level overlay so full reads work
+    ./run_sim.py                # dev 1.8.4 map, registers 10501-10860
+    ./run_sim.py --fix-10504    # overlays 10504 with static.0 (that address
+                                #   is the second copy of state on this map)
 
 pymodbus must be ~3.6 (3.6.9 verified): ModbusData.py imports
 pymodbus.datastore.store and pymodbus.device, removed in later releases.
@@ -39,24 +40,33 @@ auto-detects.
 ## Placeholders pending real-world data (see simmca.py header)
 
 Unit serials default to 6-digit numerics, names to MAC-style hex; sensor
-ids to optoX-sNN. alarm.N/comp.N/sensor.N registers index LEXICOGRAPHICALLY
-sorted collections, so swap in real serial/id formats to match a deployed
-machine's ordering.
+ids to optoX-sNN. alarm1/2/3/l.N, ustatus.N, comp.N, and sensor.N registers
+index LEXICOGRAPHICALLY sorted collections, so swap in real serial/id
+formats to match a deployed machine's ordering.
 
 ## Findings from running the production files as-is
 
-- Reg 10504 (alarm.value.value) caches None; any read covering it gets no
-  response at all (connection-level, not a Modbus exception). Server
-  survives. Presents as 'random timeouts' to a BMS polling full blocks.
-- running() is inverted via ModbusData.status() (mb_timeout semantics);
-  masked in production because the main loop re-calls modbus.start(),
-  whose thread.is_alive() guard no-ops.
+Synced to `upstream/dev` `66bda6b` (config version 1.8.4). The map is
+10501-10860: run_enable, a second int copy of state at 10504, mcpalarm,
+alarm1/2/3 plus alarml, ustatus, run_backup, a BACnet clock, mcpwarn, and
+three relay-state registers. See CLAUDE.md for the address list.
+
+- The old 10504 `alarm.value.value` timeout is gone. `getValues` returns
+  -2 for a None cache cell instead of failing the response. A non-digit
+  alarm/comp/sensor/ustatus index can still cache None.
+- `running()` is `alive and running`. `gateway_status()` (formerly
+  `status()`) still reports True when the last poll is older than
+  mb_timeout, and `running()` no longer consults it.
 - Float registers only convert int values; non-integer config floats read
   as 0.0 over Modbus. Defaults (lwt=121 etc.) are ints, so latent.
+- Writes of cut_inout and config floats keep only the high word (low word
+  forced to 0) and store int(float). 132.0 round-trips; other values may not.
+- `run_enable` is hardcoded 0 in MCA.py. The sim mirrors that.
 - MCAConfig list-overlay construction validates after each layer but
   shims only at the end; unused in production (directory merge is one
   layer) but a trap for tooling.
 - config/util.py runs logging.basicConfig at import; run_sim uses
   force=True to override.
 - state register = base state + status bits (16 modbus, 32 mqtt, 64 web,
-  128 alarm); on <-> not config.stop; cut_inout reads cut_in, writes both.
+  128 alarm), published at both 10503 and 10504; on <-> not config.stop;
+  cut_inout reads cut_in, writes both.

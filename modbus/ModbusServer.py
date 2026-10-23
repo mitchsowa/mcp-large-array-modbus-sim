@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from asyncio import Task
+from logging import Logger
 from threading import Thread
 
 from pymodbus.datastore import ModbusSlaveContext
@@ -11,19 +13,29 @@ from mca.communication import ModbusData
 
 
 class NWHSModbusServer:
-    def __init__(self, data: ModbusData, logger=logging.getLogger(__name__)):
+    def __init__(
+        self,
+        data: ModbusData,
+        addr: str = "",
+        port: int = 50502,
+        version="0.0.1",
+        logger: Logger | None = None,
+    ):
+        if logger is None:
+            logger = logging.getLogger(__name__)
         self.data = data
-        self.log = logger
+        self.log: Logger = logger
+        self.closed = True
         self._started = False
         # TODO: pull from config
         self.identity = ModbusDeviceIdentification(
             info_name={
-                "VendorName": "Pymodbus",
-                "ProductCode": "PM",
-                "VendorUrl": "https://github.com/pymodbus-dev/pymodbus/",
-                "ProductName": "Pymodbus Server",
-                "ModelName": "Pymodbus Server",
-                "MajorMinorRevision": "0.0.1",
+                "VendorName": "Nyle Water Heating Systems",
+                "ProductCode": "NWHS",
+                "VendorUrl": "heatwater.com",
+                "ProductName": "MCA",
+                "ModelName": "LargeArray",
+                "MajorMinorRevision": version,
             }
         )
 
@@ -42,11 +54,11 @@ class NWHSModbusServer:
         #
         self.loop = None
         self.server = None
-        self.thread: Thread = Thread(target=self.run)
+        self.thread: Thread = Thread(target=self.run, name="modbus")
         self._running = False
         self.result = None
         self.task = None
-        self.address = ("", 50502)
+        self.address: tuple[str, int] = (addr, port)
 
     def start(self):
         self.log.info("starting start")
@@ -77,8 +89,10 @@ class NWHSModbusServer:
         self.log.info(f"done serve {self.server}")
 
     async def disconnect(self) -> bool:
-        if self.server:
+        if self.server is not None:
+            self.closed = self.server.close()
             self.shutdown = await self.server.shutdown()
+            self.thread.join(1)
         return not self.running()
 
     def running(self) -> bool:
@@ -90,7 +104,26 @@ class NWHSModbusServer:
         running = self.loop.is_running()
         tasks = asyncio.all_tasks(self.loop)
 
-        status: bool = self.data.status()
+        # status: bool = self.data.status()
         self.log.debug(f"modbus running status a{alive} r{running} t{tasks} ")
 
-        return alive and running and status
+        return alive and running  # and status
+
+    def gateway_status(self) -> bool:
+        return self.data.gateway_status()
+
+    def __serialize__(self):
+        def l(tsk: Task):
+            return str(tsk.get_name())
+
+        return {
+            "alive": None if self.thread is None else self.thread.is_alive(),
+            "loop_running": None if self.loop is None else self.loop.is_running(),
+            "running": self.running(),
+            "_running": self._running,
+            "address": self.address,
+            "closed": self.closed,
+            "tasks": list(map(l, list(asyncio.all_tasks(self.loop)))),
+            "gateway": self.gateway_status(),
+            "data": self.data.__serialize__(),
+        }

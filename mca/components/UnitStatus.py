@@ -31,4 +31,6 @@ class UnitStatus(IntFlag):
 if __name__ == "__main__":
     u = UnitStatus(0)
     u.set(MASTER=True, STANDBY=True)
-    print(f"{u} int({int(u)} .value({u.value} int(.value){int(u.value)}")
+    print(
+        f"u={u} int(u)={int(u)} u.value={u.value} int(u.value)={int(u.value)}"
+    )

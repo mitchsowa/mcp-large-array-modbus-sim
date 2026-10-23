@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# mbtest.sh - read and decode the full NWHS Modbus register map (10501-10649)
+# mbtest.sh - read and decode the NWHS Modbus register map (resources/config/01_modbus.json)
 #
 # Reads all data points from the NWHSModbusServer, labels them per
 # 01_modbus.json, decodes 32-bit float register pairs, and writes the
@@ -49,9 +49,12 @@ python3 -c 'import pymodbus' 2>/dev/null || {
 mkdir -p "$OUTDIR"
 OUTFILE="$OUTDIR/mbtest-$(hostname -s)-$(date +%Y%m%d-%H%M%S).log"
 
+ROOT=$(cd "$(dirname "$0")" && pwd)
 export MB_HOST="$HOST" MB_PORT="$PORT" MB_UNIT="$UNIT" MB_SWAP="$SWAP" MB_ZMODE="$ZMODE"
+export MB_MAP="$ROOT/resources/config/01_modbus.json"
 
 python3 - <<'PYEOF' | tee "$OUTFILE"
+import json
 import os
 import struct
 import sys
@@ -66,35 +69,22 @@ SWAP  = os.environ["MB_SWAP"] == "1"
 ZMODE = os.environ["MB_ZMODE"]
 
 # ---------------------------------------------------------------- register map
-# mirrors 01_modbus.json: addr -> (label, kind)
+# loaded from resources/config/01_modbus.json so a dev resync updates labels
 # kind: int | float (hi word, value spans addr and addr+1) | float_lo
+with open(os.environ["MB_MAP"]) as fh:
+    params = json.load(fh)["parameters"]
+
 PMAP = {}
-
-def add(addr, label, kind="int"):
-    PMAP[addr] = (label, kind)
-
-def addf(addr, label):
-    PMAP[addr] = (label, "float")
-    PMAP[addr + 1] = (label, "float_lo")
-
-add(10501, "on")
-add(10502, "state")
-add(10503, "state")
-add(10504, "alarm.value.value")     # known-bad mapping: server caches None here
-add(10505, "unit_count")
-add(10506, "num_running_units")
-addf(10507, "config.lwt")
-addf(10509, "config.setpoint")
-for a in range(10511, 10519):
-    add(a, "static.0")
-addf(10519, "cut_inout")
-for i in range(1, 15):
-    addf(10521 + (i - 1) * 2, f"sensor.{i}")
-for i in range(1, 51):              # alarm block has a static.0 hole at 10552
-    add(10548 + i if i <= 3 else 10549 + i, f"alarm.{i}")
-add(10552, "static.0")
-for i in range(1, 51):
-    add(10599 + i, f"comp.{i}")
+for addr in sorted(int(k) for k in params if str(k).isdigit()):
+    mapping = params[str(addr)]
+    if mapping == "float":
+        prev = PMAP.get(addr - 1, ("float", "int"))[0]
+        PMAP[addr] = (prev, "float_lo")
+    elif isinstance(mapping, dict):
+        kind = "float" if mapping.get("type") == "float" else "int"
+        PMAP[addr] = (str(mapping.get("key", addr)), kind)
+    else:
+        PMAP[addr] = (str(mapping), "int")
 
 ADDRS = sorted(PMAP)
 LO, HI = ADDRS[0], ADDRS[-1]

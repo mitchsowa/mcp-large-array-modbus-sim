@@ -1,6 +1,5 @@
-from enum import auto
-from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import Enum, auto
 
 MAX_SENSORS = 14
 MAX_UNITS = 50
@@ -25,14 +24,20 @@ INTER = False
 # prevents rendering of expensive strings during log output
 DEBUG = False
 
-STR = type("")
+FLOAT = type(1.0)  # noqa: UP003
+INT = type(1)  # noqa: UP003
+STR = type("")  # noqa: UP003
 DIC = type({})
-BOL = type(True)
+BOL = type(True)  # noqa: UP003
+BYTES = type(bytes(0))
+ARRAY: type[list] = type([])
 NONE = type(None)
 
+
+TZ = timezone.utc
 # in for ma tim bug on fr201
 BIT_MAX_32 = 2147483647
-MAX_TIME = datetime.fromtimestamp(BIT_MAX_32)
+MAX_TIME = datetime.fromtimestamp(BIT_MAX_32, tz=TZ)
 MAX_TIME_TS = MAX_TIME.timestamp()
 
 LITTLE_ENDIAN_INT = "<I"

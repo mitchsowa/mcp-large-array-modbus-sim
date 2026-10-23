@@ -19,8 +19,9 @@ Register range is derived exactly as mca/MCA.py does:
 int(min/max(config.parameters.to_dict().keys())). Cache pump interval
 defaults to config loop_freq (ms), like the production main loop.
 
-Register 10504 (alarm.value.value) remains broken by default, exactly as in
-production; --fix-10504 overlays it at the config level only.
+The map is whatever resources/config/01_modbus.json says (dev 1.8.4:
+10501-10860). --fix-10504 still overlays that one address with static.0;
+on this map 10504 is the second copy of state, so the overlay masks it.
 """
 
 import argparse
@@ -37,12 +38,13 @@ from simmca import SimMCA
 HELP = """commands:
   sensor N V      set sensor N (1-14, id-sorted) value    e.g.  sensor 3 142
   comp N HRS      set unit N (sn-sorted) compressor hours e.g.  comp 2 4511
-  alarm N WORD    set unit N alarm Reg1 word              e.g.  alarm 1 5
+  alarm N WORD    set unit N alarm1 (Reg1) word          e.g.  alarm 1 5
   running N       set number of running units             e.g.  running 12
   set ATTR V      set MCA attribute/property              e.g.  set on 1 | set cut_inout 132
   state N         set base state value (status bits added automatically)
   flag NAME 0|1   set status bit input: mb_status mqtt_connected web_status hmi_status
-  nalarm V        set native alarm value (adds 128 to state when nonzero)
+  nalarm V        set native alarm (mcpalarm; adds 128 to state when nonzero)
+  nwarn V         set native warn (mcpwarn)
   config KEY V    set config value                        e.g.  config lwt 145
   update          refresh the register cache now
   dump            show raw cache contents
@@ -70,7 +72,11 @@ def main() -> int:
     ap.add_argument("--log-level", default="WARNING",
                     help="DEBUG/INFO/WARNING/ERROR (default WARNING; INFO logs every read)")
     ap.add_argument("--fix-10504", action="store_true",
-                    help="overlay reg 10504 to static.0 (config-level only)")
+                    help="overlay reg 10504 to static.0 (on this map that masks the second state word)")
+    ap.add_argument("--port", type=int, default=50502,
+                    help="TCP port (default 50502, hardcoded in production MCA.py)")
+    ap.add_argument("--populate", action="store_true",
+                    help="fill registers with distinct values; sensors step every pump")
     ap.add_argument("--no-repl", action="store_true", help="headless")
     args = ap.parse_args()
 
@@ -95,10 +101,12 @@ def main() -> int:
         interval = float(lf) / 1000.0
 
     sim = SimMCA(cfg, unit_count=args.units)
+    if args.populate:
+        sim.populate()
 
     data = ModbusData(sim, start=start, end=end)
 
-    srv = NWHSModbusServer(data)
+    srv = NWHSModbusServer(data, port=args.port, version=str(cfg.version))
     srv.thread.daemon = True  # external tweak: real run() never exits its loop
     srv.start()
 
@@ -107,6 +115,8 @@ def main() -> int:
     def pump():
         while not stop.is_set():
             try:
+                if args.populate:
+                    sim.tick()
                 data.update()
             except Exception as e:
                 print(f"pump error: {e!r}", file=sys.stderr)
@@ -115,10 +125,7 @@ def main() -> int:
     threading.Thread(target=pump, daemon=True, name="cache-pump").start()
 
     print(f"config version {cfg.version}  registers {start}-{end}  "
-          f"on 0.0.0.0:50502  ({args.units} units, pump {interval:.1f}s)")
-    if not args.fix_10504:
-        print("note: reg 10504 (alarm.value.value) broken as in production; "
-              "reads covering it will fail. --fix-10504 to overlay.")
+          f"on 0.0.0.0:{args.port}  ({args.units} units, pump {interval:.1f}s)")
 
     if args.no_repl:
         try:
@@ -181,6 +188,10 @@ def main() -> int:
                 sim.alarm.set(int(rest[0]))
                 data.update()
                 print(f"native alarm = {sim.alarm.alarm}  state = {sim.state}")
+            elif cmd == "nwarn":
+                sim.alarm.set_warn(int(rest[0]))
+                data.update()
+                print(f"native warn = {sim.alarm.warn}")
             elif cmd == "config":
                 key, v = rest[0], parse_num(rest[1])
                 cfg[key] = v
@@ -193,7 +204,7 @@ def main() -> int:
                 print(data.cache)
             elif cmd == "status":
                 print(f"thread alive: {srv.thread.is_alive()}  running(): {srv.running()}  "
-                      f"data.status(): {data.status()}  cut_inout: {sim.cut_inout}  on: {sim.on}")
+                      f"gateway_status(): {data.gateway_status()}  cut_inout: {sim.cut_inout}  on: {sim.on}")
             else:
                 print(f"unknown command: {cmd} (try 'help')")
         except (IndexError, ValueError, KeyError, AttributeError) as e:

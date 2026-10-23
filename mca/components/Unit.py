@@ -1,10 +1,11 @@
 # Unit.py
-from logging import Logger
 import json
 import logging
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
+from logging import Logger
+from typing import ClassVar
 
+from mca.communication import ControlCMD, HPCDecoder
 from mca.components.UnitAlarm import Reg1, UnitAlarm
 from mca.components.UnitStatus import UnitStatus
 from mca.MCAConfig import MCAConfig
@@ -47,6 +48,8 @@ class Unit:
         messages are sent to return it to the desired state
     """
 
+    hpc_parsers: ClassVar[dict[int, HPCDecoder]] = {10: HPCDecoder()}
+
     @staticmethod
     def serialize(unit):
         return unit.__serialize__()
@@ -59,14 +62,14 @@ class Unit:
         self,
         name: str,
         config: MCAConfig,
-        topic: Optional[str] = None,
+        topic: str | None = None,
         tank: int = 0,
         lwt: int = 0,
         diff: int = 0,
-        mac: Optional[List[str]] = None,
-        model: Optional[str] = None,
-        sn: Optional[str] = None,
-        logger: Optional[logging.Logger] = None,
+        mac: list[str] | None = None,
+        model: str | None = None,
+        sn: str | None = None,
+        logger: logging.Logger | None = None,
     ):
         """
         the representation of a unit for mcp
@@ -93,6 +96,12 @@ class Unit:
         """name of the unit, mac concatinated"""
 
         self.status = UnitStatus(0)
+
+        self.hpc = None
+        """indicates unit is an hpc and needs to be parsed"""
+
+        self.hpc_protocol = None
+        self.parser = None
 
         self.ctl_topic = topic
         """topic to send control signals to"""
@@ -126,7 +135,7 @@ class Unit:
         self.manual = False
         """if heat call is from manual call"""
 
-        self.cycle: Optional[bool] = None
+        self.cycle: bool = False
         """unit cycle register"""
 
         self.local_stop: bool = False
@@ -141,16 +150,16 @@ class Unit:
         self.cond_state = False
         """wether or not the condenser is running"""
 
-        self.evap_state: Optional[bool] = None
+        self.evap_state: bool | None = None
         """wether or not the evap is running"""
 
         self.comp_hrs: int = 0
         """run hours on the compressor"""
 
-        self.dlp: Optional[float] = None
+        self.dlp: float | None = None
         """discharge line pressue"""
 
-        self.slp: Optional[float] = None
+        self.slp: float | None = None
 
         self.ewt = 0
         """ entering water temperature"""
@@ -171,7 +180,7 @@ class Unit:
         """the current reported tank setpoint"""
 
         # time on unit
-        self.time = datetime.fromtimestamp(0)
+        self.time = datetime.fromtimestamp(0, tz=timezone.utc)
 
         """the current time set on the unit"""
 
@@ -260,14 +269,10 @@ class Unit:
 
     @property
     def max_run_time(self):
-        if self.config is not None:
-            if self.config.unit_max_run_time is not None:
-                return self.config.unit_max_run_time
+        if self.config is not None and self.config.unit_max_run_time is not None:
+            return self.config.unit_max_run_time
         self.log.error("unit_max_run_time not found")
         return 64800
-
-    # self.comp_state
-    # self.starting
 
     @property
     def starting(self) -> bool:
@@ -291,11 +296,20 @@ class Unit:
     @property
     def heatcall(self) -> bool:
         """the unit is in heatcall, one of the hc registers is true, it has received the heatcall but may not be started yet"""
-        return self.master or self.holding or self.standby
+        return (
+            self.cycle
+            and not self.cant_run
+            and (self.master or self.holding or self.standby)
+        )
 
     @property
     def lockout(self) -> bool:
         return Reg1.Lockout_Alarm & self.alarm.reg1  # pyright: ignore
+
+    @property
+    def shutdown(self) -> bool:
+        """comp running without heatcall"""
+        return (not self.called) and self.comp_state
 
     @property
     def connected(self) -> bool:
@@ -303,8 +317,8 @@ class Unit:
         if the unit is connected determined if it has been
         atleast $time_out_delay since last message from unit
         """
-        # return rather last_update time is within the last 2 minutes
         late_time = nowts() - self.time_out_delay
+        # return rather last_update time is within the last 2 minutes
         time_out: bool = self.last_update > late_time
         return time_out
 
@@ -342,18 +356,19 @@ class Unit:
     def nick(self) -> str:
         """returns value for nick name of unit"""
 
-        if self.config is not None:
-            if self.config.unit_names is not None:
-                if self.config.unit_names.get(self.name) is not None:
-                    return str(self.config.unit_names.get(self.name))
+        if (
+            self.config is not None
+            and self.config.unit_names is not None
+            and self.config.unit_names.get(self.name) is not None
+        ):
+            return str(self.config.unit_names.get(self.name))
         return str(self.sn)
 
     @property
     def run_time_out_delay(self) -> int:
         """int: number of seconds to wait for unit to run after call"""
-        if self.config is not None:
-            if self.config.unit_run_timeout is not None:
-                return int(self.config.unit_run_timeout)
+        if self.config is not None and self.config.unit_run_timeout is not None:
+            return int(self.config.unit_run_timeout)
         return 1200
 
     @property
@@ -518,10 +533,11 @@ class Unit:
             self.log.info("max run time")
             self.stop()
             return False
-        elif self.run_timed_out:
-            self.log.info("run time timeout")
-            self.stop()
-            return False
+        # should be handled by sort order
+        # elif self.run_timed_out:
+        #    self.log.info("run time timeout")
+        #    self.stop()
+        #    return False
         elif not self.connected:
             self.log.info("disconnected stopping")
             self.stop()
@@ -553,37 +569,78 @@ class Unit:
         self._desired_cycle = False
 
     def register(self, obj) -> bool:
-        """register new unit to system"""
+        """
+        register new unit to system
+        { "mac":[0,3,123,186,173,102],
+        "time":[25,1,27,16,43,21],
+        "Unit SN":123456,
+        "Unit Model":6}
+
+        {"Unit Model":5,
+        "Unit SN":100278,
+        "ctl_fw_ver":[2,0,4],
+        "hpc":true,
+        "iot_fw_ver":[2,0,4],
+        "mac":[0,0,0,0,0,0],
+        "protocol":{"version":10},
+        "timestamp":1787162696}
+
+        """
         self.last_synced = nowts()
         try:
-            date = obj["time"]
-            if len("%i" % date[0]) == 2:
-                # fix 2 digit years
-                date[0] = date[0] + 2000
-            self.time = datetime(
-                year=date[0],
-                month=date[1],
-                day=date[2],
-                hour=date[3],
-                minute=date[4],
-                second=date[5],
-            )
-            self.mac = obj["mac"]
+            if "protocol" in obj and "version" in obj["protocol"]:
+                self.log.info("HPC Detected")
+                if "hpc" in obj:
+                    self.hpc = obj["hpc"]
+                else:
+                    self.log.warning("non hpc unit with protocol")
+                self.hpc_protocol = obj["protocol"]["version"]
+                if self.hpc_protocol != 10:
+                    self.log.error("invalid protocl version")
+                self.parser = Unit.hpc_parsers[self.hpc_protocol]
+            elif "time" in obj:
+                self.log.info("PLC Detected")
+                self.hpc = False
+            else:
+                self.log.warning(f"UNKOWN Type of unit detected {obj}")
+
+            if not self.hpc:
+                date = obj["time"]
+                if len(f"{date[0]:d}") == 2:
+                    # fix 2 digit years
+                    date[0] = date[0] + 2000
+                    self.time = datetime(
+                        year=date[0],
+                        month=date[1],
+                        day=date[2],
+                        hour=date[3],
+                        minute=date[4],
+                        second=date[5],
+                        tzinfo=timezone.utc,
+                    )
+            else:
+                self.time = datetime.fromtimestamp(obj["timestamp"], tz=timezone.utc)
+
             self.model = str(obj["Unit Model"])
             self.sn = str(obj["Unit SN"])
+            self.mac = obj["mac"]
             self.hello = True
         except Exception as e:
-            self.log.error(f"unit update error  {self.id} {e} {obj}")
+            self.log.error(
+                f"unit register error  {self.id} - {e.__class__} {e} with -  {obj}"
+            )
             self.hello = False
         self.log.info(f"UNIT: Registered: {self.id} {self.time}  ")
         return self.hello
 
     # read attribute message
-    def update(self, obj: dict) -> bool:
+    def update(self, msg: bytes) -> bool:
         """set the unit state to given message
                 return - if state was successfully applied
         ctl packet
-           {"hc_status": ["Boolean M7000", "Boolean M7001", "Boolean M7002"],
+           {"hc_status": [
+           "Boolean M7000", "Boolean M7001", "Boolean M7002"
+           ],
             "cant_run": "Boolean M7003",
             "comp": {
             "state": "Boolean M7004",
@@ -604,6 +661,37 @@ class Unit:
             "cycle": "Boolean M0002",
             "local_stop": "Boolean M0031"}
         """
+        obj: dict | None = None
+        if self.hpc is not None:
+            if self.hpc:
+                if self.parser is not None:
+                    obj = self.parser.map(self.parser.parse(msg)[0])
+                else:
+                    self.log.error(f"unknown hpc version {self}")
+            else:
+                try:
+                    obj = json.loads(msg)
+                except Exception as e:
+                    self.log.error(f"plc msg parse failed {self.hpc} {msg} {e}")
+        else:
+            tobj = None
+            try:
+                tobj = json.loads(msg)
+                obj = tobj
+            except Exception as json_e:
+                try:
+                    if self.parser is not None:
+                        resp_obj = self.parser.map(self.parser.parse(msg)[0])
+                        tobj = vars(resp_obj)
+                        obj = tobj
+                except Exception as hpc_e:
+                    self.log.error(f"{self.hpc} {self.parser} ")
+                    self.log.error(
+                        f"msg guess faile {self.id} {msg!s} tobj:{tobj!s} obj:{obj!s} json:{json_e} hpc:{hpc_e}  "
+                    )
+        if obj is None:
+            return False
+
         if not self.hello:
             self.log.warning(f"missing hello from {self.name}")
             self.update_error = True
@@ -611,10 +699,7 @@ class Unit:
 
         try:
             self.master, self.standby, self.holding = obj["hc_status"]
-            if "cycle" in obj:
-                self.cycle = obj["cycle"]
-            else:
-                self.cycle = None
+            self.cycle = obj["cycle"]
 
             if "local_stop" in obj:
                 self.local_stop = obj["local_stop"]
@@ -667,7 +752,7 @@ class Unit:
 
     def update_ts(self, ts):
         if self.time.day != ts[0]:
-            today = datetime.now()
+            today = datetime.now(tz=timezone.utc)
             self.log.info(f"UNIT: day rollerver on {self.id} got {ts} on {today} ")
             try:
                 self.time.replace(
@@ -848,6 +933,7 @@ class Unit:
             "desired_heatcall": self.desired_heatcall,
             "starting": self.starting,
             "called": self.called,
+            "shutdown": self.shutdown,
             "calling": self.calling,
             "manual": self.manual,
             "ctd": self.ctd,
@@ -855,7 +941,8 @@ class Unit:
             "run_timed_out": self.run_timed_out,
             "run_time_out_delay": self.run_time_out_delay,
             "run_time_out_count": self.run_time_out_count,
-            "time": self.time.timestamp(),
+            "time": str(self.time.timestamp()),
+            "hpc": self.hpc,
         }
 
     def __repr__(self) -> str:
@@ -866,3 +953,14 @@ class Unit:
 
     def __json__(self):
         Unit.JSON(self)
+
+    def __mqtt__(self):
+        if self.hpc:
+            state: dict = self.desired_state
+            x = ControlCMD(
+                state["cycle"], state["heat_call"], float(state["sp"]["lwt"])
+            )
+            return x.bytes()
+
+        else:
+            return self.desired_state

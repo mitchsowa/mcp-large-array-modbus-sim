@@ -1,76 +1,129 @@
 # variables must be snake case to allow env overrides
+# NI - not implemented 
+
 # if mca should shut down
 stop = true
+
 # how often to run control loop
 loop_freq = 1000
+
 # how often to run initialization loop
 init_loop_freq = 1000
+
+# number of times init loop can fail before restarting system
 init_loop_count = 600
+
 # topic to subscribe to to get unit updates
 mqtt_topic_unit = "unit"
+
 # host for mqtt server
 mqtt_host = "localhost"
+
 # port for mqtt
 mqtt_port = 1883
+
+#port for modbus
+mb_port = 50502
+
+#address for modbus
+mb_addr = ""
+
 # time to keep connected to mqtt server if no traffic
 mqtt_keep_alive = 90
+
 # client id for mqtt connection
 mqtt_client_id = "mca"
+
 # prefix for mqtt subscription, combined with name and suffix
 mqtt_topic_sensors_prefix = "data/sensors"
+
 # suffix to look into under prifix/name for sensors
 #mqtt_topic_sensors_suffix = "OptoMMP/Modules/Channels"
+
 # mqtt_sensor1 name
 #mqtt_sensor1 = "opto1"
+
 # mqtt_sensor2 name
 #mqtt_sensor2 = "opto2"
+
 #max  messages to read per loop
 mqtt_read_per_loop = 200
+
+# port to bind mqtt to
 mqtt_bind_address = ""
+
 # port to bind conneciton to
 mqtt_bind_port = 0
+
 # weterh to clean session on connection
 mqtt_clean_session = false
+
 # transport protocol
 mqtt_transport = "tcp"
+
 # wetehr to reconnect on error
 mqtt_reconnect = false
+
 # wether to log messages form mqtt connection
 # subject to logging configuration
 mqtt_log_enabled = true
+
 # topic to send heartbeat to
 mqtt_mca_heartbeat = "data/mca/heartbeat"
+
 # wetehr to include debug settings
 #debug = true
+
 # prefix to send unit messages to
 unit_ctl_prefix = "data/mca"
+
 # chanel to send control messages to prefix/unitid/suffix
 unit_ctl_suffix = "ctl"
+
 # configured number of units
 unit_count = 14
+
 # minimum number of required sensors
 min_sensor_count = 3
+
 # configured number of sensors
 sensor_count = 14
+
 # minimum number of units to run 
 min_stage_count = 1
+
 # maximum number of units to run
 max_stage_count = 14
-#
+
 # data/sensors/opto1/OptoMMP/Modules/Channels/8/State
 #topics for source relay to identify where its located will usually be consistent with sensor patterns but may change in future
 #similar settings for other relays
 relay_topic = "sensors"
+
+# if source relay is currently forced on
 source_force_state = false
+
+# name of source output
 source_name = "q0"
+
+# old values from optos
 #source_topic = "data/sensors/opto1/OptoMMP/Modules/Channels/8"
 #source_topic_write = "data/sensors/write/opto1/OptoMMP/Modules/Channels/8/State"
 # relay2 = circ relay
+
+# wheter to force load relay on
 load_force_state = false
+
+# name of load output
 load_name = "q1"
+
+# old config values from opto
 #load_topic = "data/sensors/opto2/OptoMMP/Modules/Channels/8"
 #load_topic_write = "data/sensors/write/opto2/OptoMMP/Modules/Channels/8/State"
 # relay 3 = backup_heat
+
+#
+backup_heat_force_state = false
 backup_name = "q2"
 #backup_heat_topic = "data/sensors/opto1/OptoMMP/Modules/Channels/9"
 #backup_heat_topic_write = "data/sensors/write/opto1/OptoMMP/Modules/Channels/9/State"
@@ -167,12 +220,21 @@ auto_update_mcpla = "auto_update_mcpla_v1.007.zip"
 # Serial Number: mumeric for now. other SN format: NHP000000
 mcp_sn = 420690
 
+# NI, the ip address to bind the server serving the static files for the front end
 hmi_host = "127.0.0.1"
+
+# NI, the port to host the hmi server on
 hmi_port = 3100
 
+# number of seconds the rsync command can run before timeout 
+# passed to rsync command as --timeout
 log_sync_timeout = 30
+
+# seconds after which sensors are considered timedout 
 sensor_timeout = 600
 
+# number of seconds to wait before attempting to poll sensors if they arent reporting
+# used but doesn't have effect on plc sensors, old value from optos
 refresh_interval = 90
 
 # amount of time to wait for call to be received before 
@@ -190,6 +252,7 @@ unit_max_run_time = 64800
 # ctd timer default 
 ctd_duration = 900
 
+# seconds until mb connections is considered stale
 mb_timeout = 3600
 
 # [force_run]

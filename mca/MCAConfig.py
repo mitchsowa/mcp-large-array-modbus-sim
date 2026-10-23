@@ -17,6 +17,7 @@ class MCAConfig(Config):
         self._path: list[str] = []
         self._prev = "91_previous.json"
         self._cur = "92_current.json"
+        self._last_write = ""
 
         config_hash = {}
         hold = []
@@ -132,10 +133,31 @@ class MCAConfig(Config):
 
         return valid
 
-    def write_config(self, dst) -> None:
+    def write_config(self, dst, dst2=None) -> None:
         if self._path is not None:
-            with open(os.path.join(self._path[-1], dst), "w") as fh:
-                json.dump(self.to_dict(), fh)
+            file_name: str = os.path.join(self._path[-1], dst)
+            cur_write: dict = self.to_dict()
+            cur_str = json.dumps(cur_write)
+            if cur_str != self._last_write:
+                self._log.info(
+                    f"CONFIG HERE writing {file_name} {cur_write} last {self._last_write}"
+                )
+                with open(file_name, "w") as fh:
+                    json.dump(cur_write, fh)
+                    os.fsync(fh)
+                if dst2 is not None:
+                    file_name2: str = os.path.join(self._path[-1], dst2)
+                    with open(file_name2, "w") as fh:
+                        json.dump(cur_write, fh)
+                        os.fsync(fh)
+
+                self._log.info(
+                    f"CONFIG setting {self._last_write} to HERE \n\n\n{cur_str}"
+                )
+                self._last_write = cur_str
+            else:
+                self._log.info("CONFIG skipped write")
+
         else:
             self._log.warning("no path for config determined unable to save")
 
@@ -161,6 +183,9 @@ class MCAConfig(Config):
                 os.path.join(self._path[-1], self._prev),
             )
 
+    # TODO: this breaks backup config but is used to prevent file corruption on write
     def save_config(self):
         if self._path is not None:
-            self.write_config(self._cur)
+            self.write_config(self._cur, self._prev)
+        else:
+            self._log.warning("no _path set")

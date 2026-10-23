@@ -72,19 +72,26 @@ class Reg3(Flag):
 class LocalAlarm(Flag):
     # 1 = unit has different config than the config being sent via mqtt and hasn't updated
     SYNC_FAULT = auto()  # 1
-    # comp failed to start before timeout after being called
+
+    # 2 = comp failed to start before timeout after being called
     RUN_TIMEOUT = auto()  # 2
-    # run not enabled
+
+    # 4 = run not enabled
     UNIT_OUT_OF_SERVICE = auto()
-    # comp has failed to start multiple times
+
+    # 8 = comp has failed to start multiple times
     MULTIPLE_RUN_TIMEOUTS = auto()
-    # uit has reached max run timeout
+
+    # 16 = uit has reached max run timeout
     MAX_RUN_TIMEOUT = auto()
-    # unit is disconnected
+
+    # 32 = unit is disconnected
     DISCONNECT = auto()  # 1 = disconnected
-    # 16 = unit not registered. ( no hello message, but sending ctl msgs ))
+
+    # 64 = unit not registered. ( no hello message, but sending ctl msgs ))
     NOT_REGISTERED = auto()
-    # unit mqtt malformated
+
+    # 128 unit mqtt malformated
     UPDATE_FAULT = auto()
 
 
@@ -243,7 +250,10 @@ class UnitAlarm:
         else:
             self.unset_alarm("SYNC_FAULT")
 
-        if unit.config is not None and unit.config.call_timeout_limit is not None:
+        if (
+            unit.config is not None
+            and unit.config.call_timeout_limit is not None
+        ):
             if unit.run_time_out_count > unit.config.call_timeout_limit:
                 self.set_alarm("MULTIPLE_RUN_TIMEOUT")
                 self.unset_alarm("RUN_TIMEOUT")
@@ -302,12 +312,8 @@ class UnitAlarm:
             "local": self.localAlarm.value,
         }
 
-    def __modbus__(self) -> int:
-        return self.reg1.value
-
 
 ###############################################################################
-
 if __name__ == "__main__":
     us = UnitAlarm()
     for reg in [Reg1, Reg2, Reg3, LocalAlarm]:

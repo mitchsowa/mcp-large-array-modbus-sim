@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import timedelta
+from logging import Logger
 from uuid import uuid4
 
 from mca.Const import MAX_TIME
+from mca.Util import nowdt
 
 log = logging.getLogger(__name__)
 
@@ -13,8 +14,8 @@ class Timer:
         self,
         duration_key,
         config,
-        id: Optional[str] = None,
-        logger: Optional[logging.Logger] = None,
+        id: str | None = None,
+        logger: Logger | None = None,
     ):
         self.config = config
         """config to use for values"""
@@ -48,11 +49,11 @@ class Timer:
     def duration(self):
         """pull the configurable duration timer"""
         dur = getattr(self.config, self._duration)
-        return int(round(float(dur)))
+        return round(float(dur))
 
     @duration.setter
     def duration(self, value):
-        self.config.update({self._duration: int(round(float(value)))})
+        self.config.update({self._duration: round(float(value))})
 
     def trigger(self, duration=None):
         """reset the timer and run it"""
@@ -62,7 +63,7 @@ class Timer:
         self._running = True
 
         self.log.info("trigger")
-        self.time = datetime.now() + timedelta(seconds=duration)
+        self.time = nowdt() + timedelta(seconds=duration)
 
     def start(self):
         """if the timer isn't running run it, if it is running leave it"""
@@ -71,7 +72,7 @@ class Timer:
 
     def done(self):
         """check if the sensor is complete if its runnign and mark it as such and return if the sensor is done"""
-        if self._running and datetime.now() > self.time:
+        if self._running and nowdt() > self.time:
             self._done = True
             self._running = False
         return self._done
@@ -83,7 +84,7 @@ class Timer:
         """return the number of seconds remaining in the sensor"""
         if self.done():
             return float(0)
-        return (self.time - datetime.now()).total_seconds()
+        return (self.time - nowdt()).total_seconds()
 
     def reset(self):
         """reset the timer to not be running or done"""

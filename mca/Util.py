@@ -1,11 +1,15 @@
+import ast
 import csv
+import inspect
 import logging
 import os
 import re
-from datetime import datetime
+import textwrap
+from collections.abc import Callable
+from datetime import datetime, timezone
 from enum import Flag
 from struct import pack, unpack
-from typing import Callable, List
+from typing import Any
 
 from mca.Const import (
     BIN_STR_16_BIT,
@@ -17,8 +21,12 @@ from mca.Const import (
 log: logging.Logger = logging.getLogger(__name__)
 
 
+def nowdt():
+    return datetime.now(tz=timezone.utc)
+
+
 def nowts() -> float:
-    return datetime.now().timestamp()
+    return nowdt().timestamp()
 
 
 # untility function for how plcs store value sin 4 byte split registers
@@ -128,7 +136,7 @@ def test():
             log.info(f"{value} fails")
 
 
-def write_csv(path: str, msg: str, gen_header: Callable[[], List[str]]) -> None:
+def write_csv(path: str, msg: str, gen_header: Callable[[], list[str]]) -> None:
     """write csv log to a file, create and add header if it doesn't exist"""
     create = False
     if not os.path.isfile(path):
@@ -227,7 +235,7 @@ class IDict(dict):
     def __init__(self, *args, **kw):
 
         self.index = []
-        super(IDict, self).__init__(*args, **kw)
+        super().__init__(*args, **kw)
         self.update_index()
 
     def update_index(self):
@@ -242,17 +250,62 @@ class IDict(dict):
         # there is a bug here if a unit id is a low integer it will cause a conflict between
         # the ditct based index and the array based index but that should only happen in testing
         # in production unit id will be a mac address and easaly disingusiable from a number
-        if isinstance(key, int) or (
-            isinstance(key, str) and key.isdigit() and len(key) < 4
-        ):
-            if int(key) < len(self.index):
-                key = self.index[int(key)]
+        if (
+            isinstance(key, int)
+            or (isinstance(key, str) and key.isdigit() and len(key) < 4)
+        ) and int(key) < len(self.index):
+            key = self.index[int(key)]
 
         return super().__getitem__(key)
 
 
 def num_set_flags(flag: Flag):
     return flag.value.bit_count()
+
+
+def get_init_self_attrs(obj_or_cls):
+    cls = obj_or_cls if isinstance(obj_or_cls, type) else type(obj_or_cls)
+    source = inspect.getsource(cls.__init__)
+    source = textwrap.dedent(source)
+    tree = ast.parse(source)
+    init_fn = tree.body[0]
+
+    attrs = []
+    for n in ast.walk(init_fn):
+        if (
+            isinstance(n, ast.Attribute)
+            and isinstance(n.ctx, ast.Store)
+            and isinstance(n.value, ast.Name)
+            and n.value.id == "self"
+        ):
+            attrs.append(n.attr)
+    return attrs
+
+
+def first(*vals: Any | None):
+    for val in vals:
+        if val is not None:
+            return val
+
+
+def dflt(val: Any, default: Any = 0, adj: Callable | None = None, pas: Any = 0):
+    """
+    used to return a value or a default value and apply an optional transofrmation on the value if its given
+    allows passthrough of certain values
+    val - the optional value given
+    default - the default value to return if value is None
+    adj - an ajuster function to apply to the value if given and value is not none
+    pas - a value to pass through if its given, generaly used fo case of 0 when converting
+    """
+    if val is None:
+        return default
+    elif val == pas:
+        return val
+    else:
+        if adj is None:
+            return val
+        else:
+            return adj(val)
 
 
 if __name__ == "__main__":

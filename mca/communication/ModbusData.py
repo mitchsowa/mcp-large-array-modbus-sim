@@ -23,21 +23,26 @@ class ModbusData(BaseModbusDataBlock):
         TODO: handle partial writes, if value is invalide revert
     """
 
-    def __init__(self, mca, start=0, end=0, logger=logging.getLogger(__name__)):
-        self.mca: mca.MCA = mca
-        self.config: MCAConfig = mca.config
+    def __init__(
+        self, mca_inst, start=0, end=0, logger=logging.getLogger(__name__)
+    ):
+        self.mca: mca.MCA = mca_inst
+        self.config: MCAConfig = mca_inst.config
         self.params = self.config._parameters
         self.start: int = start
         self.end: int = end
         self.cache: List = []
         self.log: logging.Logger = logger
         self.log.debug(f"{self.start} - {self.end} ")
-        self.last_call = 0
+        self.last_call: float = 0
         self.update()
 
-    def status(self) -> bool:
+    def gateway_status(self) -> bool:
         if self.last_call:
-            if self.config.mb_timeout is not None and self.config.mb_timeout > 0:
+            if (
+                self.config.mb_timeout is not None
+                and self.config.mb_timeout > 0
+            ):
                 return self.last_call < (nowts() - self.config.mb_timeout)
         return True
 
@@ -56,7 +61,11 @@ class ModbusData(BaseModbusDataBlock):
                 # TODO: this is modbus error code, verify encoding and documet better
                 ret.append(-2)
             else:
-                ret.append(self.cache[addr])
+                value = self.cache[addr]
+                if value is None:
+                    ret.append(-2)
+                else:
+                    ret.append(value)
         self.log.info(f"Sending {address} {count} {ret}")
         return ret
 
@@ -66,14 +75,16 @@ class ModbusData(BaseModbusDataBlock):
         self.cache = self.updateRegs(self.start, self.end - self.start + 1)
         self.log.info(f"updated {self.print_cache(self.cache)}")
 
-    def print_cache(self, cache):
+    def print_cache(self, cache) -> str:
         ret = ""
         for addr in range(0, len(cache)):
             ret += f"{addr}({addr + self.start})->{self.cache[addr]} "
         return ret
 
     def validate(self, address, count):
-        self.log.debug(f"validating {address} {count} vs {self.start},{self.end}")
+        self.log.debug(
+            f"validating {address} {count} vs {self.start},{self.end}"
+        )
         # count - 1 since last address counts as 1 register
         valid = address >= self.start and address + count - 1 <= self.end
         if not valid:
@@ -89,6 +100,7 @@ class ModbusData(BaseModbusDataBlock):
         based on paramaters configuration value
         """
         num = 1
+        self.log.info(f"setValues {address} {values}")
 
         # check number of values being set
         if type(values) is list:
@@ -101,28 +113,45 @@ class ModbusData(BaseModbusDataBlock):
         # interpret how to read the data
         for addr in range(address, address + num):
             key, data_type = self.parseParameters(str(addr))
-            self.log.debug(f"parseParameters {addr} {key} {data_type}")
+            self.log.info(
+                f"setValues parseParameters a{addr} k{key} d{data_type} v{values}"
+            )
 
             if key is None:
                 self.log.error(f"no value for {addr} found in config ")
             elif key.split(".")[0] == "float":
-                # skip as handled in last value
+                self.log.info("skip float")
                 continue
             elif key.split(".")[0] == "cut_inout":
                 upper = values.pop(0)
-                lower = values.pop(0)
+                lower = 0
                 fl = ints_to_754(upper, lower)
                 cvt = int(fl)
-                self.log.debug(f"GOT  {upper} {lower} {fl} {cvt}")
+                self.log.info(f"GOT cut_inout  {upper} {lower} {fl} {cvt}")
                 self.mca.cut_inout = cvt
 
             elif key.split(".")[0] == "config":
+                self.log.info(f"setting config {key}")
                 # assume float
+                upper = values.pop(0)
+                lower = 0
+                fl = ints_to_754(upper, lower)
+                cvt = int(fl)
                 key_wo_config = ".".join(key.split(".")[1:])
-                self.log.debug(f"setting {key} - {key_wo_config} to {values[0]}")
-                self.config[key_wo_config] = values.pop(0)
+                self.log.info(
+                    f"setting {key} - {key_wo_config} to {values} -> {cvt}"
+                )
+                self.config[key_wo_config] = cvt
+            elif key == "on":
+                value = values.pop(0)
+                if value == 0:
+                    value = True
+                else:
+                    value = False
+                self.log.info(f"setting on  {value} ")
+                self.config.rupdate("stop", value)
             else:
-                self.log.error(f"invalid {address} {values}")
+                self.log.error(f"invalid write {key} {address} {values}")
                 values.pop(0)
 
     def updateRegs(self, address: int, count=1) -> list:
@@ -164,7 +193,9 @@ class ModbusData(BaseModbusDataBlock):
                     self.log.debug(f"config key is {key}")
                     val = self.config.get(str(key))
                     if val is None:
-                        self.log.error(f"config no value found for {key} in config")
+                        self.log.error(
+                            f"config no value found for {key} in config"
+                        )
                     else:
                         self.log.debug(
                             f"config found value for {addr} at {key} is {val}"
@@ -175,12 +206,18 @@ class ModbusData(BaseModbusDataBlock):
                     if val is None:
                         self.log.error(f"no value found for {key} in self")
                     else:
-                        self.log.debug(f"found value for {addr} at {key} is {val}")
+                        self.log.debug(
+                            f"found value for {addr} at {key} is {val}"
+                        )
                 elif (
-                    parts[0] == "alarm"
+                    parts[0] == "alarm1"
+                    or parts[0] == "alarm2"
+                    or parts[0] == "alarm3"
+                    or parts[0] == "alarml"
                     or parts[0] == "comp"
                     or parts[0] == "sensor"
                     or parts[0] == "static"
+                    or parts[0] == "ustatus"
                 ):
                     comp = parts[0]
 
@@ -189,7 +226,14 @@ class ModbusData(BaseModbusDataBlock):
                         ret.append(None)
                         continue
                     id = int(id) - 1
-                    if comp == "comp" or comp == "alarm":
+                    if (
+                        comp == "comp"
+                        or comp == "alarm1"
+                        or comp == "alarm2"
+                        or comp == "alarm3"
+                        or comp == "alarml"
+                        or comp == "ustatus"
+                    ):
                         if units == []:
 
                             def un_sort(x):
@@ -210,9 +254,20 @@ class ModbusData(BaseModbusDataBlock):
                             val = 0
                         elif comp == "comp":
                             val = units[id].comp_hrs
-                            self.log.debug(f"COMP HRS {id}  {units[id].comp_hrs}")
-                        elif comp == "alarm":
-                            val = units[id].alarm.__modbus__()
+                            self.log.debug(
+                                f"COMP HRS {id}  {units[id].comp_hrs}"
+                            )
+                        elif comp == "alarm1":
+                            val = units[id].alarm.reg1.value
+                        elif comp == "alarm2":
+                            val = units[id].alarm.reg2.value
+                        elif comp == "alarm3":
+                            val = units[id].alarm.reg3.value
+                        elif comp == "alarml":
+                            val = units[id].alarm.localAlarm.value
+                        elif comp == "ustatus":
+                            val = units[id].status.value
+
                         else:
                             self.log.error(f"INVALID {id} {units}")
                             val = None
@@ -226,7 +281,9 @@ class ModbusData(BaseModbusDataBlock):
                             def sen_sort(x):
                                 return x.id
 
-                            sensors = sorted(self.mca.sensors.values(), key=sen_sort)
+                            sensors = sorted(
+                                self.mca.sensors.values(), key=sen_sort
+                            )
                             self.log.debug(f"sorted sensor {sensors}")
                         if id > len(sensors):
                             val = int(0)
@@ -294,7 +351,10 @@ class ModbusData(BaseModbusDataBlock):
             # if type isn't int change the type
             if "type" in mapping:
                 data_type = mapping["type"]
-        elif type(mapping) is Config or str(type(mapping)) == "config.Config.Config":
+        elif (
+            type(mapping) is Config
+            or str(type(mapping)) == "config.Config.Config"
+        ):
             key = mapping.key
             if mapping.type is not None:
                 data_type = mapping.type
@@ -305,3 +365,14 @@ class ModbusData(BaseModbusDataBlock):
 
     def getCurrentValue(self, value_key):
         pass
+
+    def __serialize__(self):
+
+        return {
+            "time": nowts(),
+            "start": self.start,
+            "end": self.end,
+            "last_call": self.last_call,
+            "data_gateway_status": self.gateway_status(),
+            "cache": self.print_cache(self.cache),
+        }

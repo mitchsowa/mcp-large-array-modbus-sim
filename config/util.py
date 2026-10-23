@@ -63,11 +63,13 @@ def load_configuration(config_dir, log=logger) -> dict:
 
         # parse json files
         elif t == "json":
+            contents = "readfailed"
             with open(file, "r") as fh:
                 try:
-                    tmp_config = json.load(fh)
-                except json.decoder.JSONDecodeError:
-                    log.error("{} json decode error".format(file))
+                    contents = fh.read()
+                    tmp_config = json.loads(contents)
+                except json.decoder.JSONDecodeError as e:
+                    log.error(f"{file} json decode error {contents} \n {e}")
 
         # parse toml files
         elif t == "toml":

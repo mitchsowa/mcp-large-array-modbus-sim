@@ -96,6 +96,7 @@ class Config:
 
             # if value is an existing config object
             elif isinstance(self.get(key), Config):
+                # Can't be none as is instance of Config
                 self.get(key).update(value)
             # if value is a raw value
             else:
