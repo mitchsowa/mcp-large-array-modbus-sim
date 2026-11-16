@@ -97,7 +97,11 @@ class Config:
             # if value is an existing config object
             elif isinstance(self.get(key), Config):
                 # Can't be none as is instance of Config
-                self.get(key).update(value)
+                t = self.get(key)
+                if t is not None:
+                    t.update(value)
+                else:
+                    return False
             # if value is a raw value
             else:
                 if isinstance(value, dict):
@@ -154,7 +158,7 @@ class Config:
         self,
         _name: str,
     ) -> Any:
-        self._log.info(f"get({_name})")
+        self._log.debug(f"get({_name})")
         if _name in ["_ipython_canary_method_should_not_exist_"]:
             raise AttributeError(str(_name) + " Doesn't exist")
 

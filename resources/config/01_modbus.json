@@ -1,6 +1,21 @@
 {
   "parameters": {
-    "10501": "on",
+    "10501": {
+      "key": "on",
+      "type": "int",
+      "struct": "bool",
+      "point": "Cycle",
+      "addr": 10501,
+      "w": true,
+      "r": true,
+      "units": null,
+      "desc": "Current System Cycle",
+      "help": "if the system is in operation",
+      "title": "cycle",
+      "log": true,
+      "bms": true,
+      "modbus": true
+    },
     "10502": "run_enable",
     "10503": "state",
     "10504": "state",
@@ -13,15 +28,17 @@
     },
     "10509": "float",
     "10510": {
-      "key": "config.setpoint",
-      "type": "float"
+      "key": "config.warm_cut_in"
     },
     "10511": "float",
-    "10512": "static.0",
-    "10513": "static.0",
-    "10514": "static.0",
-    "10515": "static.0",
-    "10516": "static.0",
+    "10512": {
+      "key": "config.cold_per_warm",
+      "type": "float"
+    },
+    "10513": "float",
+    "10514": "num_warm_sensors",
+    "10515": "operational_mode",
+    "10516": "num_raw_cold_sensors",
     "10517": "static.0",
     "10518": "static.0",
     "10519": "static.0",

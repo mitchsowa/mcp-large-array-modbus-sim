@@ -18,7 +18,7 @@ __init__.py, simmca.py, run_sim.py, selftest.py, mbtest.sh.
 ## Run
 
     pip install -r requirements.txt --break-system-packages
-    ./run_sim.py                # dev 1.8.4 map, registers 10501-10860
+    ./run_sim.py                # sprtp 1.8.5 map, registers 10501-10860
     ./run_sim.py --fix-10504    # overlays 10504 with static.0 (that address
                                 #   is the second copy of state on this map)
 
@@ -46,10 +46,12 @@ formats to match a deployed machine's ordering.
 
 ## Findings from running the production files as-is
 
-Synced to `upstream/dev` `66bda6b` (config version 1.8.4). The map is
-10501-10860: run_enable, a second int copy of state at 10504, mcpalarm,
-alarm1/2/3 plus alarml, ustatus, run_backup, a BACnet clock, mcpwarn, and
-three relay-state registers. See CLAUDE.md for the address list.
+Synced to `upstream/sprtp` `ef27516` (config version 1.8.5). That branch
+is the upstream source. The map is 10501-10860. 10510 is `config.warm_cut_in`
+(an int), 10512 is `config.cold_per_warm`, and 10514-10516 are
+`num_warm_sensors`, `operational_mode`, and `num_raw_cold_sensors`.
+10511 is still a float partner, so reads after 10510 are one address
+early. See CLAUDE.md for the address list.
 
 - The old 10504 `alarm.value.value` timeout is gone. `getValues` returns
   -2 for a None cache cell instead of failing the response. A non-digit

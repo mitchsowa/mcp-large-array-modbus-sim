@@ -58,8 +58,8 @@ class MCAConfig(Config):
             # where its running due to wrapper
             config = os.path.join(os.getcwd(), path)
         # don't do anything with valid path
-        elif is_valid_path:
-            pass
+        else:
+            config = path
 
         return load_configuration(config)
 

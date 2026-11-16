@@ -8,6 +8,7 @@ from typing import ClassVar
 from mca.communication import ControlCMD, HPCDecoder
 from mca.components.UnitAlarm import Reg1, UnitAlarm
 from mca.components.UnitStatus import UnitStatus
+from mca.Const import UnitMode
 from mca.MCAConfig import MCAConfig
 from mca.Util import nowts
 
@@ -63,7 +64,6 @@ class Unit:
         name: str,
         config: MCAConfig,
         topic: str | None = None,
-        tank: int = 0,
         lwt: int = 0,
         diff: int = 0,
         mac: list[str] | None = None,
@@ -75,7 +75,6 @@ class Unit:
         the representation of a unit for mcp
         name - the name of the unit, a string of the mac concatinated
         topic - the topic the unit communicates on
-        tank - the tank setpoint for the unit
         lwt - the lwt for the unit
         diff - the diff for the unit
         mac - the mac address of the unit
@@ -86,7 +85,7 @@ class Unit:
         self.ctl_topic = topic if topic is not None else name
         """topic used to send message to unit"""
 
-        self.config: MCAConfig = config
+        self.config: MCAConfig | None = config
         """config used by the unit"""
 
         self.id: str = str(name)
@@ -135,7 +134,7 @@ class Unit:
         self.manual = False
         """if heat call is from manual call"""
 
-        self.cycle: bool = False
+        self.cycle: bool | None = False
         """unit cycle register"""
 
         self.local_stop: bool = False
@@ -249,9 +248,6 @@ class Unit:
         self.desired_heatcall = False
         """the desired heatcall state"""
 
-        self._desired_tank = tank
-        """desired tank display temperature"""
-
         self._desired_lwt = lwt
         """the desired lwt value for the unit"""
 
@@ -260,6 +256,8 @@ class Unit:
 
         self.deleted = False
         """if the unit is set to be delted"""
+
+        self.operational_mode = UnitMode.UNSET
 
         self.log.info(f"created unit {self.id}")
 
@@ -296,7 +294,7 @@ class Unit:
     @property
     def heatcall(self) -> bool:
         """the unit is in heatcall, one of the hc registers is true, it has received the heatcall but may not be started yet"""
-        return (
+        return bool(
             self.cycle
             and not self.cant_run
             and (self.master or self.holding or self.standby)
@@ -304,7 +302,7 @@ class Unit:
 
     @property
     def lockout(self) -> bool:
-        return Reg1.Lockout_Alarm & self.alarm.reg1  # pyright: ignore
+        return bool(Reg1.Lockout_Alarm & self.alarm.reg1)  # pyright: ignore
 
     @property
     def shutdown(self) -> bool:
@@ -415,11 +413,7 @@ class Unit:
 
     @property
     def desired_tank(self) -> int:
-        if self.config is not None and self.config.setpoint is not None:
-            return self.config.setpoint
-        else:
-            self.log.error("config doesn't contain setpoint")
-            return self._desired_tank
+        return self.desired_lwt_sp
 
     @property
     def desired_lwt_sp(self) -> int:
@@ -467,7 +461,7 @@ class Unit:
             # this is a fancy way to only show cycle if it is valid and skip it otherwise
             "cycle": self.desired_cycle,
             "sp": {
-                "tank": self.desired_tank,
+                "tank": self.desired_lwt_sp,
                 "lwt": self.desired_lwt_sp,
                 "dif": self.desired_diff,
             },
@@ -494,7 +488,8 @@ class Unit:
         }
 
     def end_force_run(self):
-        self.config.rupdate(f"force_run.{self.id}", 0)
+        if self.config is not None:
+            self.config.rupdate(f"force_run.{self.id}", 0)
 
     def notify_update_sent(self):
         """function to inform unit its most recent state has been sent to mqtt"""
@@ -665,7 +660,8 @@ class Unit:
         if self.hpc is not None:
             if self.hpc:
                 if self.parser is not None:
-                    obj = self.parser.map(self.parser.parse(msg)[0])
+                    parse = self.parser.parse(msg)[0]
+                    obj = self.parser.map(parse)
                 else:
                     self.log.error(f"unknown hpc version {self}")
             else:
@@ -737,6 +733,14 @@ class Unit:
 
             self.alarm.update(obj["alarm"])
 
+            if "operational_mode" in obj:
+                self.operational_mode = UnitMode(obj["operational_mode"])
+            else:
+                if self.hpc:
+                    self.operational_mode = UnitMode.ERROR
+                else:
+                    self.operational_mode = UnitMode.NONE
+
             self.last_update = nowts()
             self.update_error = False
             return True
@@ -790,7 +794,7 @@ class Unit:
         check connectivity
         check state
         update desired values
-        enforce force_run and allow_run
+        enforce force_run and enable_run
         """
         # update state
         # pull defaults from config
@@ -926,7 +930,7 @@ class Unit:
             "req_time": nowts(),
             "slp": self.slp,
             "dlp": self.dlp,
-            "time_since_last_update": nowts() - self.last_update,
+            "time_since_last_update": round(nowts() - self.last_update, 6),
             "healthy": self.healthy,
             "desired": self.desired_state,
             "current": self.current_state,
@@ -943,6 +947,7 @@ class Unit:
             "run_time_out_count": self.run_time_out_count,
             "time": str(self.time.timestamp()),
             "hpc": self.hpc,
+            "operational_mode": self.operational_mode.name,
         }
 
     def __repr__(self) -> str:

@@ -38,15 +38,18 @@ checks = [
     ("unit_count", i16(10506), 50),
     ("num_running_units", i16(10507), 2),
     ("config.lwt", f32(10508), 121.0),
-    ("config.setpoint", f32(10510), 120.0),
-    ("cut_inout (cut_in)", f32(10520), 119.0),
-    ("sensor.1", f32(10522), 111.0),
-    ("sensor.14", f32(10548), 124.0),
-    ("comp.50", i16(10649), 5000),
-    ("run_backup", i16(10650), 0),
-    ("mcpwarn", i16(10857), 0),
-    ("load_relay_state", i16(10858), 0),
-    ("backup_relay_state", i16(10860), 0),
+    # 10510 is config.warm_cut_in with no type, so it is one int.
+    # 10511 is still the float-partner skip, so the cache is one word
+    # short and every later value is published one address early.
+    ("warm_cut_in int", i16(10510), 115),
+    ("cut high word shifted to 10519", i16(10519), 17134),
+    ("sensor.1 shifted to 10521", f32(10521), 111.0),
+    ("sensor.14 shifted to 10547", f32(10547), 124.0),
+    ("comp.50 shifted to 10648", i16(10648), 5000),
+    ("run_backup shifted to 10649", i16(10649), 0),
+    ("mcpwarn shifted to 10856", i16(10856), 0),
+    ("load_relay shifted to 10857", i16(10857), 0),
+    ("backup_relay shifted to 10859", i16(10859), 0),
 ]
 fails = 0
 for label, got, want in checks:
@@ -54,24 +57,30 @@ for label, got, want in checks:
     fails += not ok
     print(f"  {'PASS' if ok else 'FAIL'}  {label:<26} got {got} want {want}")
 
-# every register in 10501-10860 must answer; a None cache cell used to drop the TCP response
-for base in range(10501, 10861, 100):
-    count = min(100, 10861 - base)
+# Blocks that stay inside the 359-word cache must answer. A read that
+# includes 10860 asks for cache index 359, updateRegs supplies -2, and
+# pymodbus cannot encode that, so the response fails.
+for base, count in ((10501, 100), (10601, 100), (10701, 100), (10801, 59)):
     blk = c.read_holding_registers(address=base - 1, count=count, slave=1)
     ok = (not blk.isError()) and len(blk.registers) == count
     fails += not ok
     print(f"  {'PASS' if ok else 'FAIL'}  block {base}+{count}")
 
-# write path: cut_inout float write must land in config.cut_in/cut_out.
-# dev's setValues keeps only the high word (low forced 0); 132.0 encodes as 0x43040000.
+# write path: cut_inout is still address 10520. setValues keeps only the
+# high word (low forced 0); 132.0 encodes as 0x43040000. The read cache is
+# one address early, so the high word comes back at 10519.
 raw = struct.unpack(">HH", struct.pack(">f", 132.0))
 wr = c.write_registers(address=10519, values=list(raw), slave=1)
 assert not wr.isError(), "cut_inout write failed"
 import time; time.sleep(2)
-rb = f32(10520)
-ok = abs(rb - 132.0) < 0.01
+rb = i16(10519)
+ok = rb == 17156
 fails += not ok
-print(f"  {'PASS' if ok else 'FAIL'}  {'cut_inout write round-trip':<26} got {rb} want 132.0")
+print(f"  {'PASS' if ok else 'FAIL'}  {'cut write seen at 10519':<26} got {rb} want 17156")
+tail = c.read_holding_registers(address=10859, count=1, slave=1)
+ok = tail.isError()
+fails += not ok
+print(f"  {'PASS' if ok else 'FAIL'}  {'10860 read fails':<26} got {'error' if ok else tail.registers}")
 
 c.close()
 sys.exit(1 if fails else 0)

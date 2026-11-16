@@ -12,14 +12,14 @@ file, selftest.py.
 Config loading mirrors production: a DIRECTORY of numbered fragments merged
 in filename order (config/util.py:load_configuration), default
 resources/config, overridable with MCA_CONFIG -- same env var as
-mca/__main__.py. Path must be RELATIVE (MCAConfig.load_path breaks on
-absolute paths -- faithful to production).
+mca/__main__.py. A relative path is joined to the working directory.
+An absolute path is used as given (sprtp load_path).
 
 Register range is derived exactly as mca/MCA.py does:
 int(min/max(config.parameters.to_dict().keys())). Cache pump interval
 defaults to config loop_freq (ms), like the production main loop.
 
-The map is whatever resources/config/01_modbus.json says (dev 1.8.4:
+The map is whatever resources/config/01_modbus.json says (sprtp 1.8.5:
 10501-10860). --fix-10504 still overlays that one address with static.0;
 on this map 10504 is the second copy of state, so the overlay masks it.
 """

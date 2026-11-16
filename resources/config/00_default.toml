@@ -151,14 +151,24 @@ backup_heat_start_time = 0
 backup_heat_end_time = 0
 backup_heat_enabled = false
 
+# how many cold sensors is a warm sensor
+cold_per_warm = 0.25
+
+# warm cut in temp 
+warm_cut_in = 115
+
 # cut in/out based config
 cut_in = 119
 cut_out = 119
+
 # wether to use cut in / out settings or use setpoint/differential
 cut_based = true
+
 single_cut = true
-# wetehr to reconnect on failure
+
+# whether to reconnect on failure
 reconnect_on_failure = true
+
 # mqtt ack
 mqtt_manual_ack = false
 
@@ -170,10 +180,13 @@ relay_call_timeout = 10
 
 # number of relay failures to allow before marking as unhealthy
 relay_fail_count = 3
+
 # how long to wait for a unit before timing out
 unit_timeout = 120
+
 # how many times unit can fail before being timed out
 unit_fail_count = 3
+
 # nick names for relays/units
 version = "0.1"
 image_version = "0.1"
@@ -183,10 +196,21 @@ startup_connection_timeout = 5000
 # number of times to retry connections vefore giving up
 startup_connection_retry_count = 720
 
+# operational mode
+# see Const.Mode
+# 0=None
+# 1= initializing 
+# 2= sp-swing
+# 3= sp-rtp
+# 4=manual
+operational_mode = 2
+
 # last time the edit mode password was given 
 edit_mode = 0
+
 # the code for edit mode
 edit_mode_code = 1547
+
 # timeout for edit mode in seconds
 edit_mode_timeout = 3600
 
@@ -218,7 +242,7 @@ rest_template = "resources/templates"
 auto_update_mcpla = "auto_update_mcpla_v1.007.zip"
 
 # Serial Number: mumeric for now. other SN format: NHP000000
-mcp_sn = 420690
+mcp_sn = 0
 
 # NI, the ip address to bind the server serving the static files for the front end
 hmi_host = "127.0.0.1"
@@ -255,9 +279,12 @@ ctd_duration = 900
 # seconds until mb connections is considered stale
 mb_timeout = 3600
 
+mb_write = 1
+
 # [force_run]
 # $unitid = time to end at
-#
+
+#  relay names section
 [relay_names]
 load = "Load Relay"
 source = "Source Relay"

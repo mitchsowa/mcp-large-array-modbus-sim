@@ -2,23 +2,24 @@
 # HARNESS FILE -- not part of the main program.
 #
 # Verify every provenance-tracked production file here is byte-identical to
-# its counterpart on the main program's dev branch (upstream/dev). This is
-# the "are we testing exactly what's on dev?" check, complementing
-# check-provenance.sh (which only checks against the recorded local md5s).
+# its counterpart on upstream/sprtp, the branch this sim is pinned to.
+# Another branch name can be passed as the second argument.
+# This complements check-provenance.sh, which only checks the recorded
+# local md5s.
 #
 # The file list is read straight from PROVENANCE.md5 so it never drifts.
 # Path mapping: the program keeps source under src/, so each provenance
 # path gets an "src/" prefix -- EXCEPT resources/... which lives at the
 # program's repo root.
 #
-# Usage:   ./scripts/check-dev-sync.sh [remote] [branch]    (default: upstream dev)
+# Usage:   ./scripts/check-dev-sync.sh [remote] [branch]    (default: upstream sprtp)
 #          NO_FETCH=1 ./scripts/check-dev-sync.sh           (skip git fetch)
-# Exit 0 = every file matches dev. Exit 1 = drift (or missing remote/file).
+# Exit 0 = every file matches the branch. Exit 1 = drift (or missing remote/file).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 REMOTE="${1:-upstream}"
-BRANCH="${2:-dev}"
+BRANCH="${2:-sprtp}"
 REF="$REMOTE/$BRANCH"
 
 if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then

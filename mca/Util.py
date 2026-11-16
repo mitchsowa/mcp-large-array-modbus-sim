@@ -91,6 +91,12 @@ def print_float_16(value):
     return BIN_STR_16_BIT.format(value)
 
 
+def nibbles(value: int, width: int = 16) -> tuple[int, int]:
+    high = (value >> (width - 4)) & 0xF
+    low = value & 0xF
+    return high, low
+
+
 def split_float_32(value: int) -> tuple[int, int]:
     """
     take in 32 bit integer value
@@ -141,7 +147,7 @@ def write_csv(path: str, msg: str, gen_header: Callable[[], list[str]]) -> None:
     create = False
     if not os.path.isfile(path):
         create = True
-
+    headers = []
     try:
         if create:
             headers = [gen_header()]

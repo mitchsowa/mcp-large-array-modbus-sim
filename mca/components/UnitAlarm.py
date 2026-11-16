@@ -1,7 +1,9 @@
+import json
 import logging
 from enum import Flag, auto
 
 from mca.components import Unit
+from mca.Const import OperationalMode, UnitMode, validate_mode
 
 
 # strucutres to use to interpret alarm bits
@@ -30,16 +32,16 @@ class Reg1(Flag):
 # Lockout Alarms: trips after 5s in plc code
 class Reg2(Flag):
     # reg2
-    HP_LCK_Alarm = auto()
-    PowerFault_LCK_Alarm = auto()
-    Cond_Flow_LCK_Alarm = auto()
-    Evap_Flow_LCK_Alarm = auto()
-    OPSS_LCK_Alarm = auto()
-    LP_LCK_Alarm = auto()
-    PDS_LCK_Alarm = auto()
-    Defrost_LCK_Alarm = auto()
-    MPM_LCK_Alarm = auto()
-    Local_Stop_LCK_Alarm = auto()
+    HP_LCK_Alarm = auto()  # 1
+    PowerFault_LCK_Alarm = auto()  # 2
+    Cond_Flow_LCK_Alarm = auto()  # 4
+    Evap_Flow_LCK_Alarm = auto()  # 8
+    OPSS_LCK_Alarm = auto()  # 16
+    LP_LCK_Alarm = auto()  # 32
+    PDS_LCK_Alarm = auto()  # 64
+    Defrost_LCK_Alarm = auto()  # 128
+    MPM_LCK_Alarm = auto()  # 256
+    Local_Stop_LCK_Alarm = auto()  # 512
     UNUSED10 = auto()
     UNUSED11 = auto()
     UNUSED12 = auto()
@@ -94,6 +96,9 @@ class LocalAlarm(Flag):
     # 128 unit mqtt malformated
     UPDATE_FAULT = auto()
 
+    # 256 unit mode
+    WRONG_MODE = auto()
+
 
 class UnitAlarm:
     @staticmethod
@@ -112,7 +117,7 @@ class UnitAlarm:
             for member in reg:
                 tmp["name"][member.name] = member.value
                 tmp["value"][member.value] = member.name
-                if reg.__class__ == Reg1:
+                if reg == Reg1:
                     tmp["warn"] = False
                 else:
                     tmp["warn"] = True
@@ -123,9 +128,19 @@ class UnitAlarm:
     # we are passing the alarm state to the unit, then we can just have the unit update its own alarm state based on the modbus registers.
     def __init__(
         self,
-        state: list[Reg1 | Reg2 | Reg3] = [Reg1(0), Reg2(0), Reg3(0)],
-        localAlarm: LocalAlarm = LocalAlarm(0),
+        state: list[Reg1 | Reg2 | Reg3] | None = None,
+        localAlarm: LocalAlarm | None = None,
     ):
+        if state is None:
+            state = [
+                Reg1(0),
+                Reg2(0),
+                Reg3(0),
+            ]
+
+        if localAlarm is None:
+            localAlarm = LocalAlarm(0)
+
         self.log = logging.getLogger(__name__)
         self.state = state
         self.localAlarm = localAlarm
@@ -229,9 +244,7 @@ class UnitAlarm:
         return bool(self.localAlarm & alarm)
 
     def alarmed(self) -> bool:
-        if self.reg1 or self.reg2 or self.reg3 or self.localAlarm:
-            return True
-        return False
+        return bool(self.reg1 or self.reg2 or self.reg3 or self.localAlarm)
 
     def maint(self, unit: Unit):
         if unit.connected:
@@ -239,6 +252,14 @@ class UnitAlarm:
         else:
             self.localAlarm = LocalAlarm["DISCONNECT"]
             return
+
+        if unit.config is not None and validate_mode(
+            OperationalMode(unit.config.operational_mode),
+            UnitMode(unit.operational_mode),
+        ):
+            self.unset_alarm("WRONG_MODE")
+        else:
+            self.set_alarm("WRONG_MODE")
 
         if unit.run_timed_out and not self.get_alarm("MULTIPLE_RUN_TIMEOUT"):
             self.set_alarm("RUN_TIMEOUT")
@@ -250,10 +271,7 @@ class UnitAlarm:
         else:
             self.unset_alarm("SYNC_FAULT")
 
-        if (
-            unit.config is not None
-            and unit.config.call_timeout_limit is not None
-        ):
+        if unit.config is not None and unit.config.call_timeout_limit is not None:
             if unit.run_time_out_count > unit.config.call_timeout_limit:
                 self.set_alarm("MULTIPLE_RUN_TIMEOUT")
                 self.unset_alarm("RUN_TIMEOUT")
@@ -293,10 +311,7 @@ class UnitAlarm:
 
     def get_alarm(self, alarm) -> bool:
         if alarm in LocalAlarm.__members__:
-            if self.localAlarm & LocalAlarm[alarm]:
-                return True
-            else:
-                return False
+            return bool(self.localAlarm & LocalAlarm[alarm])
         else:
             self.log.error(f"request for invalid local unit alarm {alarm}")
             return False
@@ -313,10 +328,17 @@ class UnitAlarm:
         }
 
 
-###############################################################################
-if __name__ == "__main__":
-    us = UnitAlarm()
+def test():
     for reg in [Reg1, Reg2, Reg3, LocalAlarm]:
         print(reg.__name__)
         for member in reg:
             print(f"\t{member.name}->{member.value}")
+
+
+def main():
+    print(json.dumps(UnitAlarm.serialize_config()))
+
+
+###############################################################################
+if __name__ == "__main__":
+    main()

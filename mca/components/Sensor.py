@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from logging import Logger
 
 from mca.MCAConfig import MCAConfig
 from mca.Util import nowts
@@ -7,8 +7,12 @@ from mca.Util import nowts
 DEBUG = False
 
 
+class InvalidSensorId(Exception):
+    pass
+
+
 class Sensor:
-    quality_descriptions: dict[int, str] = {
+    quality_descriptions: dict[int, str] = {  # noqa: RUF012
         -2: "Timeout",
         -1: "Unknown",
         0: "OK",
@@ -25,14 +29,17 @@ class Sensor:
         23: "Thermocouple input Isolated field compensation circuitry or calculation does not give valid data.",
         30: " Any channel reporting quality Channel not present",
     }
+    """
+       string descriptors of quality values, dict of quality_value -> string description
+    """
 
     def __init__(
         self,
         id: str,
         config: MCAConfig,
-        name: Optional[str] = None,
-        location: Optional[str] = None,
-        logger=logging.getLogger(__name__ + "." + str(id)),
+        name: str | None = None,
+        location: str | None = None,
+        logger: Logger | None = None,
     ):
         """
         represent a sensor on the opto
@@ -43,38 +50,55 @@ class Sensor:
         logger - logging.logger compliant logger
 
         """
+        if logger is None:
+            logger = logging.getLogger(__name__ + "." + str(id))
 
         self.log = logger
-        # id the sensor is identified by generally name-location
-        self.id = id
+
+        self.id: str = id
+        """ id the sensor is identified by generally name-location"""
+
         tmp = id.split("-")
-        # if value is nan value
-        self.nan = False
 
         if len(tmp) != 2 and (name is None or location is None):
             self.log.error(f"invalid sensor id {self.id} {name} {location} {tmp}")
-            Exception("invalid sensor id")
+            raise InvalidSensorId(
+                f"invalid sensor id {self.id} {name} {location} {tmp}"
+            )
 
+        self.nan = False
         if name is None:
-            self.name = tmp[1]
-        elif location is None:
-            self.location = tmp[0]
+            self.name: str = tmp[1]
+            """name of the sensor on the rio or its purpose"""
+        else:
+            self.name = name
 
-        # the current value of the sensor
+        if location is None:
+            self.location: str = tmp[0]
+            """location of the sensor(the rio its connected to)"""
+        else:
+            self.location = location
+
         self.value: int = 0
-        self._status = True
+        """the current value of the sensor as an integer"""
 
-        # internal tracker for cold state
+        self._status = True
+        """
+        the health of a senosr True indicates healthy
+        can be used to flag a sensor as unhealthy in future updates
+        """
+
         self._cold = False
+        """indicates if the sensor is considered cold"""
 
         self.quality: int = -1
+        """quality indicator, represents issues with sensor quality may differ per sensor type"""
 
-        # logger
-
-        # configuration
         self.config = config
+        """reference to mca config object"""
 
-        self.last_msg = 0
+        self.last_msg: float = 0.0
+        """float of epoch timestamp last message was received"""
 
         self.log.debug(f"created sensor {self.id}")
 
@@ -105,18 +129,22 @@ class Sensor:
         return True
 
     def maint(self) -> bool:
+        """maintainance function currently checks for timeout"""
         if self.timedout:
             self.quality = -2
         return True
 
     @property
     def timedout(self) -> bool:
+        """returns if the sensor has timed out"""
         return nowts() - self.config.sensor_timeout > self.last_msg
 
     def update(self, value: float):
         """update value of sensor based on received data"""
 
-        if value is None or value != value:
+        if (
+            value is None or value != value  # noqa: PLR0124
+        ):  # check for weird values by compareing to self
             self.nan = True
             value = 0
         else:
@@ -137,6 +165,28 @@ class Sensor:
         return self.status
 
     @property
+    def satisfied(self) -> bool:
+        return self.value >= int(self.config.cut_out)
+
+    @property
+    def warm(self):
+        if not self.status:
+            return False
+
+        # only change value if sensor is below cut in or above cut out
+        # prioritize cut in to prevent issue with misconfiguration
+        if self.value < int(self.config.warm_cut_in):
+            self._cold = True
+        elif self.value >= int(self.config.cut_out):
+            self._cold = False
+
+        # if sensor is not healthy return False
+        if self.status:
+            return self._cold
+        else:
+            return False
+
+    @property
     def cold(self):
         """check if sensor is cold"""
         if not self.status:
@@ -155,6 +205,7 @@ class Sensor:
             return False
 
     def get_quality_desc(self) -> str:
+        """pulls the current quality description string from the quality_descriptions dict"""
         tgt = int(self.quality)
         if tgt in Sensor.quality_descriptions:
             return str(Sensor.quality_descriptions[tgt])

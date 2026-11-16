@@ -1,11 +1,10 @@
 import logging
-from typing import List, Optional
 
 from pymodbus.datastore.store import BaseModbusDataBlock
 from pymodbus.exceptions import ParameterException
 
-from config.Config import Config
 import mca
+from config.Config import Config
 from mca.MCAConfig import MCAConfig
 from mca.Util import float_as_int, ints_to_754, nowts, split_float_32
 
@@ -23,27 +22,25 @@ class ModbusData(BaseModbusDataBlock):
         TODO: handle partial writes, if value is invalide revert
     """
 
-    def __init__(
-        self, mca_inst, start=0, end=0, logger=logging.getLogger(__name__)
-    ):
+    def __init__(self, mca_inst, start=0, end=0, logger=logging.getLogger(__name__)):
         self.mca: mca.MCA = mca_inst
         self.config: MCAConfig = mca_inst.config
         self.params = self.config._parameters
         self.start: int = start
         self.end: int = end
-        self.cache: List = []
+        self.cache: list = []
         self.log: logging.Logger = logger
         self.log.debug(f"{self.start} - {self.end} ")
         self.last_call: float = 0
         self.update()
 
     def gateway_status(self) -> bool:
-        if self.last_call:
-            if (
-                self.config.mb_timeout is not None
-                and self.config.mb_timeout > 0
-            ):
-                return self.last_call < (nowts() - self.config.mb_timeout)
+        if (
+            self.last_call
+            and self.config.mb_timeout is not None
+            and self.config.mb_timeout > 0
+        ):
+            return self.last_call < (nowts() - self.config.mb_timeout)
         return True
 
     def getValues(self, address, count=1) -> list:
@@ -81,10 +78,8 @@ class ModbusData(BaseModbusDataBlock):
             ret += f"{addr}({addr + self.start})->{self.cache[addr]} "
         return ret
 
-    def validate(self, address, count):
-        self.log.debug(
-            f"validating {address} {count} vs {self.start},{self.end}"
-        )
+    def validate(self, address, count=1):
+        self.log.debug(f"validating {address} {count} vs {self.start},{self.end}")
         # count - 1 since last address counts as 1 register
         valid = address >= self.start and address + count - 1 <= self.end
         if not valid:
@@ -99,7 +94,9 @@ class ModbusData(BaseModbusDataBlock):
         data types are either integers or booleans by default and are converted
         based on paramaters configuration value
         """
-        num = 1
+        if not self.config.mb_write:
+            return
+
         self.log.info(f"setValues {address} {values}")
 
         # check number of values being set
@@ -138,9 +135,7 @@ class ModbusData(BaseModbusDataBlock):
                 fl = ints_to_754(upper, lower)
                 cvt = int(fl)
                 key_wo_config = ".".join(key.split(".")[1:])
-                self.log.info(
-                    f"setting {key} - {key_wo_config} to {values} -> {cvt}"
-                )
+                self.log.info(f"setting {key} - {key_wo_config} to {values} -> {cvt}")
                 self.config[key_wo_config] = cvt
             elif key == "on":
                 value = values.pop(0)
@@ -193,9 +188,7 @@ class ModbusData(BaseModbusDataBlock):
                     self.log.debug(f"config key is {key}")
                     val = self.config.get(str(key))
                     if val is None:
-                        self.log.error(
-                            f"config no value found for {key} in config"
-                        )
+                        self.log.error(f"config no value found for {key} in config")
                     else:
                         self.log.debug(
                             f"config found value for {addr} at {key} is {val}"
@@ -206,9 +199,7 @@ class ModbusData(BaseModbusDataBlock):
                     if val is None:
                         self.log.error(f"no value found for {key} in self")
                     else:
-                        self.log.debug(
-                            f"found value for {addr} at {key} is {val}"
-                        )
+                        self.log.debug(f"found value for {addr} at {key} is {val}")
                 elif (
                     parts[0] == "alarm1"
                     or parts[0] == "alarm2"
@@ -254,9 +245,7 @@ class ModbusData(BaseModbusDataBlock):
                             val = 0
                         elif comp == "comp":
                             val = units[id].comp_hrs
-                            self.log.debug(
-                                f"COMP HRS {id}  {units[id].comp_hrs}"
-                            )
+                            self.log.debug(f"COMP HRS {id}  {units[id].comp_hrs}")
                         elif comp == "alarm1":
                             val = units[id].alarm.reg1.value
                         elif comp == "alarm2":
@@ -281,9 +270,7 @@ class ModbusData(BaseModbusDataBlock):
                             def sen_sort(x):
                                 return x.id
 
-                            sensors = sorted(
-                                self.mca.sensors.values(), key=sen_sort
-                            )
+                            sensors = sorted(self.mca.sensors.values(), key=sen_sort)
                             self.log.debug(f"sorted sensor {sensors}")
                         if id > len(sensors):
                             val = int(0)
@@ -335,7 +322,7 @@ class ModbusData(BaseModbusDataBlock):
                 )
             return ret
 
-    def parseParameters(self, tgt) -> tuple[Optional[str], str]:
+    def parseParameters(self, tgt) -> tuple[str | None, str]:
         key = None
         data_type = "int"
         mapping = self.config.parameters.get(tgt)
@@ -351,10 +338,7 @@ class ModbusData(BaseModbusDataBlock):
             # if type isn't int change the type
             if "type" in mapping:
                 data_type = mapping["type"]
-        elif (
-            type(mapping) is Config
-            or str(type(mapping)) == "config.Config.Config"
-        ):
+        elif type(mapping) is Config or str(type(mapping)) == "config.Config.Config":
             key = mapping.key
             if mapping.type is not None:
                 data_type = mapping.type

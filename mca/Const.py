@@ -50,7 +50,51 @@ BIN_STR_32_BIT = "{:032b}"
 BIN_STR_16_BIT = "{:016b}"
 
 
+def validate_mode(operationMode, unitMode) -> bool:
+    """
+    if unit is in correct mode or not is unknown assume correct
+    mode should be retrieved from config.operational_mode
+    """
+    # mode not supported/manual
+    if unitMode == UnitMode.NONE or operationMode == OperationalMode.MANUAL:
+        return True
+    # unit not ready/in error
+    elif unitMode in (UnitMode.UNSET, UnitMode.ERROR):
+        return False
+    # signle pass match
+    elif unitMode == UnitMode.SINGLEPASS:
+        if operationMode == OperationalMode.DHWSP:
+            return True
+    # rtp mode match
+    elif unitMode == UnitMode.RTP:
+        if (
+            operationMode == OperationalMode.DHWSPRTP
+            or operationMode == OperationalMode.DHWSP
+        ):
+            return True
+    # unknown unit mode
+    else:
+        return False
+    # default return
+    return False
+
+
 class Mode(Enum):
     INIT = auto()
     AUTO = auto()
     MANUAL = auto()
+
+
+class OperationalMode(Enum):
+    DHWSP = auto()
+    DHWSPRTP = auto()
+    MANUAL = auto()
+
+
+class UnitMode(Enum):
+    UNSET = -3
+    ERROR = -2
+    NONE = -1
+    MULIPASS = auto()  # 0
+    SINGLEPASS = auto()  # 1
+    RTP = auto()  # 2

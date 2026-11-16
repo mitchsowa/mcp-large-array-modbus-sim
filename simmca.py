@@ -2,7 +2,7 @@
 HARNESS FILE -- simulated MCA built from the REAL component classes.
 
 Mirrors the attribute/property semantics of mca/MCA.py that the Modbus
-register map touches, verified against upstream/dev (66bda6b, version 1.8.4):
+register map touches, verified against upstream/sprtp (ef27516, version 1.8.5):
 
   on            property: int(not config.stop); setter writes config.stop
   run_enable    property: 0, as production hardcodes it
@@ -107,6 +107,22 @@ class SimMCA:
     @property
     def run_enable(self) -> int:
         return 0
+
+    @property
+    def operational_mode(self):
+        """MCA.operational_mode is config.operational_mode (toml default 2)."""
+        return self.config.operational_mode
+
+    @property
+    def num_warm_sensors(self) -> int:
+        """RTP controller count. The sim does not run that loop, so this
+        stays 0 until populate() or the REPL sets it."""
+        return int(getattr(self, "_num_warm_sensors", 0))
+
+    @property
+    def num_raw_cold_sensors(self) -> int:
+        """RTP raw cold-sensor count. Same stand-in as num_warm_sensors."""
+        return int(getattr(self, "_num_raw_cold_sensors", 0))
 
     @property
     def cut_inout(self):
@@ -220,7 +236,8 @@ class SimMCA:
 
         run_enable stays 0 because MCA.run_enable returns 0. static.0 stays 0
         because the map hardcodes that key. Floats are whole numbers because
-        updateRegs only splits int values. Clock registers follow the real clock.
+        updateRegs only splits int values. cold_per_warm is set to an int here;
+        the shipped default 0.25 reads as 0.0. Clock registers follow the real clock.
         """
         self.on = 1
         self._state = 5
@@ -233,6 +250,11 @@ class SimMCA:
         self.set_running(17)
         self.config.lwt = 141
         self.config.setpoint = 135
+        self.config.warm_cut_in = 125
+        self.config.cold_per_warm = 2
+        self.config.operational_mode = 3
+        self._num_warm_sensors = 4
+        self._num_raw_cold_sensors = 6
         self.cut_inout = 128
         self.run_backup = 1
         self.attach_relays(load=True, source=False, backup=True)

@@ -97,7 +97,7 @@ class Timer:
         return self._running
 
     def __str__(self):
-        return f"Timer: {self.id} r{self._running} d{self._done} {self.get_remaining()}"
+        return f"Timer: {self.id} r{self._running} d{self._done} {int(self.get_remaining())}"
 
     def __repr__(self) -> str:
         return self.__str__()
